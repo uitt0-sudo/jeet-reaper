@@ -253,7 +253,7 @@ async function fetchAndParseTradesEnhanced(
 
   while (true) {
     batchCount++;
-    const url = `${HELIUS_API_BASE}/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=100${before ? `&before=${before}` : ''}`;
+    const url = `${HELIUS_API_BASE}/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=500${before ? `&before=${before}` : ''}`;
     
     try {
       const response = await retryWithBackoff(
@@ -701,8 +701,16 @@ export async function fetchTokenMarketCap(tokenMint: string): Promise<number> {
     const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
     if (response.ok) {
       const data = await response.json();
-      const marketCap = data?.pairs?.[0]?.fdv || data?.pairs?.[0]?.marketCap;
-      return marketCap ? parseFloat(marketCap) : 0;
+      const pairs = Array.isArray(data?.pairs) ? data.pairs : [];
+      if (pairs.length === 0) return 0;
+      // Prefer highest liquidity pair and take fdv or marketCap
+      const best = pairs.reduce((prev: any, cur: any) => {
+        const prevLiq = Number(prev?.liquidity?.usd || 0);
+        const curLiq = Number(cur?.liquidity?.usd || 0);
+        return curLiq > prevLiq ? cur : prev;
+      }, pairs[0]);
+      const cap = Number(best?.fdv || best?.marketCap || 0);
+      return Number.isFinite(cap) ? cap : 0;
     }
   } catch (error) {
     console.warn('Market cap fetch failed for', tokenMint);

@@ -16,6 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import { analyzePaperhands } from "@/services/paperhands";
 import { isValidSolanaAddress } from "@/services/solana";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
+import TokenLogo from "@/components/TokenLogo";
 
 const Dashboard = () => {
   const [walletAddress, setWalletAddress] = useState("");
@@ -420,12 +421,7 @@ const Dashboard = () => {
                                   </span>
                                   <div className="flex items-center gap-3">
                                     {tokenMint && (
-                                      <img
-                                        src={`https://img.jup.ag/token/${tokenMint}`}
-                                        alt={`${token.symbol} logo`}
-                                        className="h-8 w-8 rounded-full border border-border object-cover"
-                                        onError={(e) => { const img = e.currentTarget as HTMLImageElement; if (img.src.indexOf('/placeholder.svg') === -1) img.src = '/placeholder.svg'; }}
-                                      />
+                                      <TokenLogo mint={tokenMint} alt={`${token.symbol} logo`} className="h-8 w-8 rounded-full border border-border object-cover" />
                                     )}
                                     <div>
                                       {tokenMint ? (
@@ -539,12 +535,7 @@ const Dashboard = () => {
                             <div className="mb-4 flex items-start justify-between">
                               <div className="flex items-center gap-3">
                                 {event.tokenMint && (
-                                  <img
-                                    src={`https://img.jup.ag/token/${event.tokenMint}`}
-                                    alt={`${event.tokenSymbol} logo`}
-                                    className="h-8 w-8 rounded-full border border-border object-cover"
-                                    onError={(e) => { const img = e.currentTarget as HTMLImageElement; if (img.src.indexOf('/placeholder.svg') === -1) img.src = '/placeholder.svg'; }}
-                                  />
+                                  <TokenLogo mint={event.tokenMint} alt={`${event.tokenSymbol} logo`} className="h-8 w-8 rounded-full border border-border object-cover" />
                                 )}
                                 <div>
                                   {event.tokenMint ? (
