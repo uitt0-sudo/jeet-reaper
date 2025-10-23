@@ -66,7 +66,7 @@ export async function analyzePaperhands(
     console.log(`Found ${swaps.length} signatures from Enhanced API${timeRangeText}`);
     
     if (swaps.length === 0) {
-      throw new Error(`No coin buys or sells found${timeRangeText}. Only SOL/USDC trades are analyzed.`);
+      console.info(`No coin buys or sells found${timeRangeText}. Proceeding with empty results.`);
     }
 
     console.log(`Parsed ${swaps.length} coin trades${timeRangeText}`);
@@ -82,7 +82,7 @@ export async function analyzePaperhands(
     const events = await calculatePaperhandsEvents(positions, onProgress);
 
     if (events.length === 0) {
-      throw new Error(`No paperhands events over $100 detected${timeRangeText}. Either this wallet held well, or had smaller trades (< $100 regret/loss).`);
+      console.info(`No paperhands events over $100 detected${timeRangeText}.`);
     }
 
     console.log(`Found ${events.length} paperhands events`);
@@ -90,7 +90,7 @@ export async function analyzePaperhands(
     // Generate final stats
     onProgress?.(`Calculating regret metrics${timeRangeText}...`, 90);
     onProgress?.(`Generating final report${timeRangeText}...`, 95);
-    const stats = generateWalletStats(walletAddress, events, daysBack, startDate, endDate);
+    const stats = generateWalletStats(walletAddress, events, daysBack, startDate, endDate, positions.length);
 
     onProgress?.('Analysis complete!', 100);
     return stats;
@@ -228,12 +228,9 @@ function generateWalletStats(
   events: PaperhandsEvent[],
   daysBack?: number,
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  coinsTradedCount?: number
 ): WalletStats {
-  if (events.length === 0) {
-    throw new Error('No paperhands events found for this wallet');
-  }
-
   const totalRegret = events.reduce((sum, e) => sum + e.regretAmount, 0);
   const totalRealized = events.reduce((sum, e) => sum + e.realizedProfit, 0);
   const totalUnrealized = events.reduce((sum, e) => sum + e.unrealizedProfit, 0);
@@ -245,15 +242,15 @@ function generateWalletStats(
     return (sell - buy) / (1000 * 60 * 60 * 24); // days
   });
 
-  const avgHoldTime = holdTimes.reduce((a, b) => a + b, 0) / holdTimes.length;
+  const avgHoldTime = holdTimes.length > 0 ? holdTimes.reduce((a, b) => a + b, 0) / holdTimes.length : 0;
 
   // Calculate win/loss rate
   const wins = events.filter(e => e.realizedProfit > 0).length;
   const losses = events.filter(e => e.realizedProfit <= 0).length;
-  const winRate = (wins / events.length) * 100;
+  const winRate = events.length > 0 ? (wins / events.length) * 100 : 0;
 
   // Calculate paperhands score (0-100, higher = worse paperhands)
-  const regretRatio = totalRegret / Math.max(totalRealized, 1);
+  const regretRatio = totalRealized !== 0 ? totalRegret / Math.abs(totalRealized) : 0;
   const paperhandsScore = Math.min(Math.round(regretRatio * 10), 100);
 
   return {
@@ -265,14 +262,14 @@ function generateWalletStats(
     socials: {},
     paperhandsScore,
     totalRegret,
-    totalRegretPercent: Math.round((totalRegret / Math.max(totalRealized, 1)) * 100),
-    worstLoss: Math.max(...events.map(e => e.regretAmount)),
+    totalRegretPercent: totalRealized !== 0 ? Math.round((totalRegret / Math.abs(totalRealized)) * 100) : 0,
+    worstLoss: events.length > 0 ? Math.max(...events.map(e => e.regretAmount)) : 0,
     totalExitedEarly: events.length,
     totalEvents: events.length,
     avgHoldTime: Math.round(avgHoldTime),
     avgShouldaHoldTime: 0, // Removed fake "shoulda held" metric
     winRate: Math.round(winRate),
-    lossRate: Math.round(100 - winRate),
+    lossRate: Math.round(100 - Math.min(Math.round(winRate), 100)),
     topRegrettedTokens: (() => {
       // Aggregate regret by tokenMint (fallback to symbol)
       const byMint = new Map<string, { regret: number; symbol: string }>();
@@ -293,7 +290,8 @@ function generateWalletStats(
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       daysBack
-    } : undefined
+    } : undefined,
+    coinsTraded: coinsTradedCount,
   };
 }
 

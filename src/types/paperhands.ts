@@ -41,7 +41,8 @@ export interface WalletStats {
   totalRegretPercent: number;
   worstLoss: number;
   totalExitedEarly: number;
-  totalEvents: number;
+   totalEvents: number;
+   coinsTraded?: number;
   avgHoldTime: number;
   avgShouldaHoldTime: number;
   winRate: number;

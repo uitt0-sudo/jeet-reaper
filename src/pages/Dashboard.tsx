@@ -109,7 +109,7 @@ const Dashboard = () => {
   })) || [];
 
   // Unique coins traded (by mint or symbol as fallback)
-  const coinsTraded = walletStats ? new Set(walletStats.events.map(e => e.tokenMint || e.tokenSymbol)).size : 0;
+  const coinsTraded = walletStats?.coinsTraded ?? (walletStats ? new Set(walletStats.events.map(e => e.tokenMint || e.tokenSymbol)).size : 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -291,110 +291,7 @@ const Dashboard = () => {
                   />
                 </div>
 
-                {/* Charts Row 1 */}
-                <div className="grid gap-6 lg:grid-cols-2">
-                  {/* PnL Timeline */}
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.7 }}
-                  >
-                    <Card className="card-glass noise-texture p-6">
-                      <h2 className="mb-4 text-xl font-bold">Profit Timeline</h2>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <AreaChart data={pnlTimelineData}>
-                          <defs>
-                            <linearGradient id="colorRealized" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="hsl(142, 76%, 60%)" stopOpacity={0.8}/>
-                              <stop offset="95%" stopColor="hsl(142, 76%, 60%)" stopOpacity={0}/>
-                            </linearGradient>
-                            <linearGradient id="colorRegret" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="hsl(0, 85%, 60%)" stopOpacity={0.8}/>
-                              <stop offset="95%" stopColor="hsl(0, 85%, 60%)" stopOpacity={0}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(142, 30%, 15%)" />
-                          <XAxis dataKey="date" stroke="hsl(142, 76%, 90%)" fontSize={12} />
-                          <YAxis stroke="hsl(142, 76%, 90%)" fontSize={12} />
-                          <RechartsTooltip
-                            contentStyle={{
-                              backgroundColor: "hsl(0, 0%, 6%)",
-                              border: "1px solid hsl(142, 30%, 15%)",
-                              borderRadius: "8px",
-                            }}
-                          />
-                          <Area type="monotone" dataKey="realized" stroke="hsl(142, 76%, 60%)" fillOpacity={1} fill="url(#colorRealized)" />
-                          <Area type="monotone" dataKey="regret" stroke="hsl(0, 85%, 60%)" fillOpacity={1} fill="url(#colorRegret)" />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </Card>
-                  </motion.div>
 
-                  {/* Regret by Token Pie Chart */}
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.8 }}
-                  >
-                    <Card className="card-glass noise-texture p-6">
-                      <h2 className="mb-4 text-xl font-bold">Regret Distribution</h2>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={pieData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={(entry: any) => {
-                              const percent = walletStats ? ((entry.value / walletStats.totalRegret) * 100).toFixed(1) : '0.0';
-                              return `${entry.name} ${percent}%`;
-                            }}
-                            outerRadius={100}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {pieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <RechartsTooltip
-                            contentStyle={{
-                              backgroundColor: "hsl(0, 0%, 6%)",
-                              border: "1px solid hsl(142, 30%, 15%)",
-                              borderRadius: "8px",
-                            }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </Card>
-                  </motion.div>
-                </div>
-
-                {/* Charts Row 2 */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.9 }}
-                >
-                  <Card className="card-glass noise-texture p-6">
-                    <h2 className="mb-4 text-xl font-bold">Regret by Event</h2>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={regretDistribution}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(142, 30%, 15%)" />
-                        <XAxis dataKey="token" stroke="hsl(142, 76%, 90%)" fontSize={12} />
-                        <YAxis stroke="hsl(142, 76%, 90%)" fontSize={12} />
-                        <RechartsTooltip
-                          contentStyle={{
-                            backgroundColor: "hsl(0, 0%, 6%)",
-                            border: "1px solid hsl(142, 30%, 15%)",
-                            borderRadius: "8px",
-                          }}
-                        />
-                        <Bar dataKey="regret" fill="hsl(0, 85%, 60%)" radius={[8, 8, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </Card>
-                </motion.div>
 
                 {/* Top Regretted Tokens */}
                 <motion.div
