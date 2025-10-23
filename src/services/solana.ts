@@ -269,7 +269,10 @@ async function fetchAndParseTradesEnhanced(
 
       if (!response || response.length === 0) break;
 
+      console.log(`Batch ${batchCount}: Received ${response.length} transactions from Enhanced API`);
+
       // Parse each transaction for wallet-centric deltas
+      let parsedInBatch = 0;
       for (const tx of response) {
         const blockTime = tx.timestamp || 0;
         
@@ -286,8 +289,11 @@ async function fetchAndParseTradesEnhanced(
         const swap = parseEnhancedTransaction(tx, walletAddress);
         if (swap) {
           swaps.push(swap);
+          parsedInBatch++;
         }
       }
+
+      console.log(`Batch ${batchCount}: Parsed ${parsedInBatch} trades (${swaps.length} total so far)`);
 
       // Stop if we hit cutoff or got fewer results than limit
       if (!before || response.length < 1000) break;
@@ -315,7 +321,9 @@ async function fetchAndParseTradesEnhanced(
  * Parse a Helius Enhanced transaction for wallet-centric token deltas
  */
 function parseEnhancedTransaction(tx: any, walletAddress: string): ParsedSwap | null {
-  if (!tx.tokenTransfers || tx.tokenTransfers.length === 0) return null;
+  if (!tx.tokenTransfers || tx.tokenTransfers.length === 0) {
+    return null;
+  }
 
   // Calculate net token delta for this wallet
   const tokenDeltas = new Map<string, { delta: number; decimals: number }>();

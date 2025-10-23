@@ -160,8 +160,13 @@ async function calculatePaperhandsEvents(
     const buys = [...position.buys].sort((a, b) => a.timestamp - b.timestamp);
     const sells = [...position.sells].sort((a, b) => a.timestamp - b.timestamp);
 
-    // Get current price once per token
-    const currentPrice = await getCurrentPriceOnly(position.tokenMint);
+    // Get current price once per token (may fail for dead/unlisted tokens)
+    let currentPrice = 0;
+    try {
+      currentPrice = await getCurrentPriceOnly(position.tokenMint);
+    } catch (error) {
+      console.warn(`Could not fetch current price for ${position.tokenSymbol}, using sell price`);
+    }
 
     for (const sell of sells) {
       // Find the buy that corresponds to this sell (FIFO matching)
@@ -169,18 +174,23 @@ async function calculatePaperhandsEvents(
       
       if (!matchingBuy) continue;
 
-      // Calculate metrics using CURRENT PRICE (honest, no estimates)
+      // Calculate metrics
       const buyValue = matchingBuy.totalCost || (matchingBuy.amount * matchingBuy.price);
       const sellValue = sell.totalValue || (sell.amount * sell.price);
       const realizedProfit = sellValue - buyValue;
       
-      // Current value if still holding
-      const currentValue = sell.amount * currentPrice;
+      // Current value if still holding (use current price if available, else sell price)
+      const effectiveCurrentPrice = currentPrice > 0 ? currentPrice : sell.price;
+      const currentValue = sell.amount * effectiveCurrentPrice;
       const missedSinceSell = Math.max(0, currentValue - sellValue);
       const regretPercent = buyValue > 0 ? (missedSinceSell / buyValue) * 100 : 0;
 
-      // Only create event if there's significant regret (>10%)
-      if (regretPercent > 10 && missedSinceSell > 0.01) {
+      // Create event if there's any loss OR significant missed opportunity
+      // Lower threshold to 5% to catch more paperhands
+      const hasSignificantRegret = (regretPercent > 5 && missedSinceSell > 0.01);
+      const hadLoss = realizedProfit < 0;
+      
+      if (hasSignificantRegret || hadLoss) {
         events.push({
           id: `${position.tokenMint}-${sell.signature}`,
           tokenSymbol: position.tokenSymbol,
@@ -192,11 +202,11 @@ async function calculatePaperhandsEvents(
           sellDate: new Date(sell.timestamp).toISOString().split('T')[0],
           amount: sell.amount,
           realizedProfit,
-          unrealizedProfit: currentValue - buyValue, // What it would be worth now
-          regretAmount: missedSinceSell, // Honest metric: missed since sell
+          unrealizedProfit: currentValue - buyValue,
+          regretAmount: missedSinceSell,
           regretPercent,
-          peakPrice: currentPrice, // Current = "peak" we know about
-          peakDate: new Date().toISOString().split('T')[0], // Today
+          peakPrice: effectiveCurrentPrice,
+          peakDate: new Date().toISOString().split('T')[0],
           txHash: sell.signature.slice(0, 8),
           explorerUrl: `https://solscan.io/tx/${sell.signature}`
         });
