@@ -274,12 +274,21 @@ function generateWalletStats(
     avgShouldaHoldTime: 0, // Removed fake "shoulda held" metric
     winRate: Math.round(winRate),
     lossRate: Math.round(100 - winRate),
-    topRegrettedTokens: events
-      .slice(0, 3)
-      .map(e => ({
-        symbol: e.tokenSymbol,
-        regretAmount: e.regretAmount
-      })),
+    topRegrettedTokens: (() => {
+      // Aggregate regret by tokenMint (fallback to symbol)
+      const byMint = new Map<string, { regret: number; symbol: string }>();
+      for (const e of events) {
+        const key = e.tokenMint || e.tokenSymbol;
+        const entry = byMint.get(key) || { regret: 0, symbol: e.tokenSymbol };
+        entry.regret += e.regretAmount;
+        entry.symbol = e.tokenSymbol || entry.symbol;
+        byMint.set(key, entry);
+      }
+      return Array.from(byMint.entries())
+        .sort((a, b) => b[1].regret - a[1].regret)
+        .slice(0, 3)
+        .map(([mint, v]) => ({ symbol: v.symbol, tokenMint: mint, regretAmount: v.regret }));
+    })(),
     events,
     analysisDateRange: daysBack && startDate && endDate ? {
       startDate: startDate.toISOString(),

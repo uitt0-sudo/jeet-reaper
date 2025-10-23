@@ -47,6 +47,7 @@ export const generateMockEvents = (address: string): PaperhandsEvent[] => {
       id: `${address}-${i}`,
       tokenSymbol: token.symbol,
       tokenName: token.name,
+      tokenMint: token.address,
       buyPrice,
       sellPrice,
       buyDate: buyDate.toISOString().split('T')[0],
@@ -128,6 +129,7 @@ export const generateMockWalletStats = (address: string): WalletStats => {
       .slice(0, 3)
       .map((e) => ({
         symbol: e.tokenSymbol,
+        tokenMint: e.tokenMint || '',
         regretAmount: e.regretAmount,
       })),
     events,

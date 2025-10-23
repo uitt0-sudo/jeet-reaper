@@ -197,29 +197,7 @@ export async function getTokenMetadata(tokenMint: string): Promise<{
   }
 
   try {
-    // Try Jupiter v1 API first (more reliable)
-    const response = await fetch(`https://api.jup.ag/tokens/v1/${tokenMint}`, {
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      const metadata = {
-        symbol: data.symbol || tokenMint.slice(0, 6),
-        name: data.name || 'Unknown Token',
-        logo: data.logoURI || `https://img.jup.ag/token/${tokenMint}`,
-      };
-      tokenMetadataCache.set(tokenMint, metadata);
-      return metadata;
-    }
-  } catch (error) {
-    console.warn(`Jupiter metadata failed for ${tokenMint}:`, error);
-  }
-
-  // Fallback: DexScreener base token info
-  try {
+    // Prefer DexScreener for base token info (CORS-friendly and reliable)
     const r2 = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
     if (r2.ok) {
       const d2 = await r2.json();
@@ -275,7 +253,7 @@ async function fetchAndParseTradesEnhanced(
 
   while (true) {
     batchCount++;
-    const url = `${HELIUS_API_BASE}/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=1000${before ? `&before=${before}` : ''}`;
+    const url = `${HELIUS_API_BASE}/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=100${before ? `&before=${before}` : ''}`;
     
     try {
       const response = await retryWithBackoff(
@@ -553,7 +531,26 @@ export async function parseSwapsWithEnhancedAPI(
   // Fallback to RPC parsing (less accurate, for backwards compatibility)
   console.warn('Enhanced API returned no results, falling back to RPC parser');
   const transactions = await fetchWalletTransactions(walletAddress, daysBack, onProgress);
-  return parseSwapTransactions(transactions, daysBack, onProgress);
+  const rpcSwaps = await parseSwapTransactions(transactions, daysBack, onProgress);
+
+  // Ensure metadata is filled for RPC swaps as well
+  if (rpcSwaps.length > 0) {
+    const uniqueMints = Array.from(new Set(rpcSwaps.map(s => s.tokenMint)));
+    const metaEntries = await Promise.all(uniqueMints.map(async (mint) => {
+      const meta = await getTokenMetadata(mint);
+      return [mint, meta] as const;
+    }));
+    const metaMap = new Map<string, { symbol: string; name: string; logo?: string }>(metaEntries);
+    for (const swap of rpcSwaps) {
+      const m = metaMap.get(swap.tokenMint);
+      if (m) {
+        if (!swap.tokenSymbol) swap.tokenSymbol = m.symbol;
+        if (!swap.tokenName) swap.tokenName = m.name;
+      }
+    }
+  }
+
+  return rpcSwaps;
 }
 
 /**

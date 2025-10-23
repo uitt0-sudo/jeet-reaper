@@ -404,8 +404,8 @@ const Dashboard = () => {
                     <h2 className="mb-6 text-2xl font-bold">Top Missed Opportunities</h2>
                     <div className="space-y-4">
                       {walletStats.topRegrettedTokens.map((token, i) => {
-                        const event = walletStats.events.find(e => e.tokenSymbol === token.symbol);
-                        const tokenMint = event?.tokenMint;
+                        const tokenMint = token.tokenMint;
+                        const event = walletStats.events.find(e => e.tokenMint === tokenMint);
                         const marketCap = event?.marketCap;
                         
                         return (
@@ -458,7 +458,7 @@ const Dashboard = () => {
                                     <p className="text-sm text-muted-foreground">At current price</p>
                                     {tokenMint && (
                                       <a
-                                        href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${token.symbol} — missed $${token.regretAmount.toFixed(0)}.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
+                                        href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${token.symbol || (tokenMint ? `${tokenMint.slice(0,4)}...${tokenMint.slice(-4)}` : 'this token')} — missed $${token.regretAmount.toFixed(0)}.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-xs text-accent hover:underline"
@@ -543,7 +543,7 @@ const Dashboard = () => {
                                     src={`https://img.jup.ag/token/${event.tokenMint}`}
                                     alt={`${event.tokenSymbol} logo`}
                                     className="h-8 w-8 rounded-full border border-border object-cover"
-                                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                    onError={(e) => { const img = e.currentTarget as HTMLImageElement; if (img.src.indexOf('/placeholder.svg') === -1) img.src = '/placeholder.svg'; }}
                                   />
                                 )}
                                 <div>

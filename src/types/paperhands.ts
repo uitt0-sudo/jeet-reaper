@@ -48,6 +48,7 @@ export interface WalletStats {
   lossRate: number;
   topRegrettedTokens: Array<{
     symbol: string;
+    tokenMint: string;
     regretAmount: number;
   }>;
   events: PaperhandsEvent[];
