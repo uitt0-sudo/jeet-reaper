@@ -18,6 +18,8 @@ const Dashboard = () => {
   const [walletAddress, setWalletAddress] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [walletStats, setWalletStats] = useState<WalletStats | null>(null);
+  const [progressMessage, setProgressMessage] = useState("");
+  const [progressPercent, setProgressPercent] = useState(0);
 
   const handleAnalyze = async () => {
     const trimmedAddress = walletAddress.trim();
@@ -42,13 +44,18 @@ const Dashboard = () => {
 
     setIsAnalyzing(true);
     setWalletStats(null);
+    setProgressMessage("Initializing analysis...");
+    setProgressPercent(0);
 
     try {
-      const stats = await analyzePaperhands(trimmedAddress);
+      const stats = await analyzePaperhands(trimmedAddress, (message, percent) => {
+        setProgressMessage(message);
+        setProgressPercent(percent);
+      });
       setWalletStats(stats);
       toast({ 
         title: "Analysis Complete!", 
-        description: `Found ${stats.totalEvents} paperhands events with $${stats.totalRegret.toLocaleString()} total regret`,
+        description: `Found ${stats.totalEvents} paperhands events with $${stats.totalRegret.toLocaleString()} total regret. (Last 300 transactions analyzed)`,
       });
     } catch (error) {
       console.error('Analysis error:', error);
@@ -60,6 +67,8 @@ const Dashboard = () => {
       });
     } finally {
       setIsAnalyzing(false);
+      setProgressMessage("");
+      setProgressPercent(0);
     }
   };
 
@@ -105,7 +114,7 @@ const Dashboard = () => {
             <div className="relative z-10">
               <h1 className="mb-2 text-4xl font-black text-primary">Analyze Your Paperhands</h1>
               <p className="mb-6 text-muted-foreground">
-                Enter any Solana wallet address to see their regret metrics. No connection required.
+                Enter any Solana wallet address to analyze their last 300 coin trades. No connection required.
               </p>
               <div className="flex gap-3">
                 <Input
@@ -137,7 +146,10 @@ const Dashboard = () => {
                 exit={{ opacity: 0 }}
               >
                 <Card className="card-glass noise-texture">
-                  <AnimatedLoader onComplete={handleAnalysisComplete} />
+                  <AnimatedLoader 
+                    message={progressMessage}
+                    progress={progressPercent}
+                  />
                 </Card>
               </motion.div>
             )}

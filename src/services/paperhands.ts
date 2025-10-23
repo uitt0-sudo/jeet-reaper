@@ -9,7 +9,8 @@ import {
   fetchWalletTransactions, 
   parseSwapTransactions, 
   getTokenPeakPrice,
-  isValidSolanaAddress 
+  isValidSolanaAddress,
+  ProgressCallback
 } from './solana';
 import { WalletStats, PaperhandsEvent } from '@/types/paperhands';
 import { generateMockWalletStats } from '@/lib/mockData';
@@ -37,7 +38,10 @@ interface TradePosition {
 /**
  * Main entry point: Analyze a wallet for paperhands behavior
  */
-export async function analyzePaperhands(walletAddress: string): Promise<WalletStats> {
+export async function analyzePaperhands(
+  walletAddress: string,
+  onProgress?: ProgressCallback
+): Promise<WalletStats> {
   // Validate address
   if (!isValidSolanaAddress(walletAddress)) {
     throw new Error('Invalid Solana wallet address');
@@ -45,9 +49,10 @@ export async function analyzePaperhands(walletAddress: string): Promise<WalletSt
 
   try {
     console.log('Starting analysis for wallet:', walletAddress);
+    onProgress?.('Starting wallet analysis...', 0);
     
-    // Fetch transaction history
-    const transactions = await fetchWalletTransactions(walletAddress);
+    // Fetch transaction history (limited to 300)
+    const transactions = await fetchWalletTransactions(walletAddress, 300, onProgress);
     
     if (transactions.length === 0) {
       throw new Error('No transactions found for this wallet');
@@ -55,22 +60,25 @@ export async function analyzePaperhands(walletAddress: string): Promise<WalletSt
 
     console.log(`Fetched ${transactions.length} transactions`);
 
-    // Parse DEX swaps
-    const swaps = await parseSwapTransactions(transactions);
+    // Parse coin trades (only buys/sells)
+    onProgress?.('Parsing coin trades...', 10);
+    const swaps = await parseSwapTransactions(transactions, onProgress);
     
     if (swaps.length === 0) {
-      throw new Error('No DEX swaps found. This wallet may not have traded on supported DEXs (Jupiter, Raydium, Orca, Phoenix).');
+      throw new Error('No coin trades found. This wallet may not have bought or sold tokens on supported DEXs.');
     }
 
-    console.log(`Parsed ${swaps.length} swap transactions`);
+    console.log(`Parsed ${swaps.length} coin trades`);
 
     // Group by token and match buys with sells
+    onProgress?.('Grouping trades by token...', 80);
     const positions = groupIntoPositions(swaps);
 
     console.log(`Grouped into ${positions.length} trading positions`);
 
     // Calculate paperhands events
-    const events = await calculatePaperhandsEvents(positions);
+    onProgress?.('Calculating regret metrics...', 85);
+    const events = await calculatePaperhandsEvents(positions, onProgress);
 
     if (events.length === 0) {
       throw new Error('No paperhands events detected. This wallet may have held their positions well!');
@@ -79,8 +87,10 @@ export async function analyzePaperhands(walletAddress: string): Promise<WalletSt
     console.log(`Found ${events.length} paperhands events`);
 
     // Generate final stats
+    onProgress?.('Generating final report...', 95);
     const stats = generateWalletStats(walletAddress, events);
 
+    onProgress?.('Analysis complete!', 100);
     return stats;
   } catch (error) {
     console.error('Error analyzing wallet:', error);
@@ -137,11 +147,16 @@ function groupIntoPositions(swaps: any[]): TradePosition[] {
  * 3. Token price went significantly higher after the sell
  */
 async function calculatePaperhandsEvents(
-  positions: TradePosition[]
+  positions: TradePosition[],
+  onProgress?: ProgressCallback
 ): Promise<PaperhandsEvent[]> {
   const events: PaperhandsEvent[] = [];
+  const totalPositions = positions.length;
 
-  for (const position of positions) {
+  for (let idx = 0; idx < positions.length; idx++) {
+    const position = positions[idx];
+    const progressPercent = 85 + (idx / totalPositions) * 10; // 85% to 95%
+    onProgress?.(`Analyzing ${position.tokenSymbol}...`, progressPercent);
     // Match each sell with its corresponding buys (FIFO)
     const buys = [...position.buys].sort((a, b) => a.timestamp - b.timestamp);
     const sells = [...position.sells].sort((a, b) => a.timestamp - b.timestamp);

@@ -1,51 +1,12 @@
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 
-const STATUS_MESSAGES = [
-  "Scanning DEX trades...",
-  "Analyzing entry points...",
-  "Calculating exits...",
-  "Replaying price action...",
-  "Computing regret metrics...",
-  "Finalizing paperhands score...",
-];
-
 interface AnimatedLoaderProps {
-  onComplete?: () => void;
+  message?: string;
+  progress?: number;
 }
 
-export const AnimatedLoader = ({ onComplete }: AnimatedLoaderProps) => {
-  const [progress, setProgress] = useState(0);
-  const [statusIndex, setStatusIndex] = useState(0);
-
-  useEffect(() => {
-    const duration = 7000;
-    const interval = 50;
-    const increment = (interval / duration) * 100;
-
-    const timer = setInterval(() => {
-      setProgress((prev) => {
-        const next = prev + increment;
-        if (next >= 100) {
-          clearInterval(timer);
-          setTimeout(() => onComplete?.(), 300);
-          return 100;
-        }
-        return next;
-      });
-    }, interval);
-
-    return () => clearInterval(timer);
-  }, [onComplete]);
-
-  useEffect(() => {
-    const statusTimer = setInterval(() => {
-      setStatusIndex((prev) => (prev + 1) % STATUS_MESSAGES.length);
-    }, 1200);
-
-    return () => clearInterval(statusTimer);
-  }, []);
+export const AnimatedLoader = ({ message = "Analyzing...", progress = 0 }: AnimatedLoaderProps) => {
 
   return (
     <motion.div
@@ -88,22 +49,20 @@ export const AnimatedLoader = ({ onComplete }: AnimatedLoaderProps) => {
       <div className="w-full max-w-md space-y-4">
         <div className="flex items-center justify-between text-sm">
           <motion.span
-            key={statusIndex}
+            key={message}
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             className="text-muted-foreground"
           >
-            {STATUS_MESSAGES[statusIndex]}
+            {message}
           </motion.span>
           <span className="font-mono text-primary">{Math.round(progress)}%</span>
         </div>
         
         <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
           <motion.div
-            className="h-full bg-gradient-to-r from-primary to-accent"
+            className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-300"
             style={{ width: `${progress}%` }}
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_2s_infinite]" />
         </div>

@@ -18,6 +18,8 @@ interface Transaction {
   err: any;
 }
 
+export type ProgressCallback = (message: string, percent: number) => void;
+
 export interface ParsedSwap {
   signature: string;
   timestamp: number;
@@ -35,6 +37,43 @@ export interface ParsedSwap {
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
 /**
+ * Sleep helper for rate limiting
+ */
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Retry with exponential backoff
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: any;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Check if it's a rate limit error
+      if (error?.message?.includes('429') || error?.message?.includes('Too many requests')) {
+        const delay = baseDelay * Math.pow(2, i);
+        console.log(`Rate limited, retrying in ${delay}ms... (attempt ${i + 1}/${maxRetries})`);
+        await sleep(delay);
+        continue;
+      }
+      
+      // For other errors, throw immediately
+      throw error;
+    }
+  }
+  
+  throw lastError;
+}
+
+/**
  * Validate a Solana address
  */
 export function isValidSolanaAddress(address: string): boolean {
@@ -47,18 +86,23 @@ export function isValidSolanaAddress(address: string): boolean {
 }
 
 /**
- * Fetch all transactions for a wallet address
+ * Fetch transactions for a wallet address (limited to 300 for performance)
  */
 export async function fetchWalletTransactions(
   walletAddress: string,
-  limit: number = 1000
+  limit: number = 300,
+  onProgress?: ProgressCallback
 ): Promise<Transaction[]> {
   try {
-    console.log(`Fetching transactions for ${walletAddress}...`);
+    onProgress?.('Fetching transaction history...', 5);
+    console.log(`Fetching last ${limit} transactions for ${walletAddress}...`);
     const pubkey = new PublicKey(walletAddress);
     
-    const signatures = await connection.getSignaturesForAddress(pubkey, { limit });
+    const signatures = await retryWithBackoff(() => 
+      connection.getSignaturesForAddress(pubkey, { limit })
+    );
     
+    onProgress?.('Found transaction signatures...', 10);
     console.log(`Found ${signatures.length} transactions`);
     
     return signatures
@@ -71,7 +115,7 @@ export async function fetchWalletTransactions(
       }));
   } catch (error) {
     console.error('Error fetching transactions:', error);
-    throw new Error('Failed to fetch wallet transactions');
+    throw new Error('Failed to fetch wallet transactions. Rate limit may be exceeded, try again in a moment.');
   }
 }
 
@@ -126,24 +170,33 @@ export async function getTokenMetadata(tokenMint: string): Promise<{
 }
 
 /**
- * Parse DEX swaps from transactions
+ * Parse DEX swaps from transactions (only coin buys/sells, not swaps)
  */
 export async function parseSwapTransactions(
-  transactions: Transaction[]
+  transactions: Transaction[],
+  onProgress?: ProgressCallback
 ): Promise<ParsedSwap[]> {
   const swaps: ParsedSwap[] = [];
-  const batchSize = 50;
+  const batchSize = 15; // Reduced to prevent rate limits
 
-  console.log(`Parsing ${transactions.length} transactions for swaps...`);
+  console.log(`Parsing ${transactions.length} transactions for coin trades...`);
+
+  const totalBatches = Math.ceil(transactions.length / batchSize);
 
   for (let i = 0; i < transactions.length; i += batchSize) {
+    const batchNumber = Math.floor(i / batchSize) + 1;
+    const progressPercent = 10 + (batchNumber / totalBatches) * 70; // 10% to 80%
+    onProgress?.(`Analyzing batch ${batchNumber}/${totalBatches}...`, progressPercent);
+
     const batch = transactions.slice(i, i + batchSize);
     const signatures = batch.map(tx => tx.signature);
 
     try {
-      const txDetails = await connection.getParsedTransactions(signatures, {
-        maxSupportedTransactionVersion: 0,
-      });
+      const txDetails = await retryWithBackoff(() => 
+        connection.getParsedTransactions(signatures, {
+          maxSupportedTransactionVersion: 0,
+        })
+      );
 
       for (let j = 0; j < txDetails.length; j++) {
         const tx = txDetails[j];
@@ -160,12 +213,20 @@ export async function parseSwapTransactions(
           console.error(`Error parsing transaction ${originalTx.signature}:`, error);
         }
       }
-    } catch (error) {
+
+      // Add delay between batches to avoid rate limits
+      if (i + batchSize < transactions.length) {
+        await sleep(700); // 700ms between batches
+      }
+    } catch (error: any) {
       console.error('Error fetching transaction batch:', error);
+      if (error?.message?.includes('429')) {
+        throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+      }
     }
   }
 
-  console.log(`Found ${swaps.length} swap transactions`);
+  console.log(`Found ${swaps.length} coin trades (buys/sells only)`);
   return swaps;
 }
 
@@ -239,6 +300,10 @@ async function parseTransaction(
   const usdcChange = tokenChanges.get(KNOWN_TOKENS.USDC) || 0;
   
   const valueChange = Math.abs(usdcChange) || solChange;
+  
+  // Only count coin buys/sells (must involve SOL or USDC)
+  if (valueChange < 0.001) return null; // No SOL/USDC moved = not a coin trade
+  
   const tokenAmount = Math.abs(tokenChange);
   const pricePerToken = tokenAmount > 0 ? valueChange / tokenAmount : 0;
 
