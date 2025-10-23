@@ -11,6 +11,15 @@
 // Helius RPC endpoint - provides enhanced Solana transaction parsing
 export const SOLANA_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=f9e18339-2a25-473d-8e3c-be24602eb51f';
 
+// Extract Helius API key from RPC URL
+export function getHeliusApiKey(): string {
+  const match = SOLANA_RPC_URL.match(/api-key=([^&]+)/);
+  return match ? match[1] : '';
+}
+
+// Helius Enhanced Transactions API
+export const HELIUS_API_BASE = 'https://api.helius.xyz/v0';
+
 // Jupiter Price API - free, no key needed
 export const JUPITER_PRICE_API = 'https://price.jup.ag/v4/price';
 

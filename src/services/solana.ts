@@ -9,7 +9,7 @@
  */
 
 import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
-import { SOLANA_RPC_URL, JUPITER_PRICE_API, DEX_PROGRAMS, KNOWN_TOKENS } from '@/config/api';
+import { SOLANA_RPC_URL, JUPITER_PRICE_API, DEX_PROGRAMS, KNOWN_TOKENS, HELIUS_API_BASE, getHeliusApiKey } from '@/config/api';
 
 interface Transaction {
   signature: string;
@@ -228,19 +228,205 @@ export async function getTokenMetadata(tokenMint: string): Promise<{
 }
 
 /**
- * Parse DEX swaps from transactions (only coin buys/sells, not swaps)
- * Optimized for parallel processing with the Helius plan
+ * Parse DEX swaps using Helius Enhanced API (preferred - accurate wallet-centric parsing)
+ */
+async function fetchAndParseTradesEnhanced(
+  walletAddress: string,
+  daysBack?: number,
+  onProgress?: ProgressCallback
+): Promise<ParsedSwap[]> {
+  const apiKey = getHeliusApiKey();
+  if (!apiKey) {
+    console.warn('No Helius API key found, falling back to RPC parser');
+    return [];
+  }
+
+  const cutoffTime = daysBack 
+    ? Math.floor(Date.now() / 1000) - (daysBack * 24 * 60 * 60)
+    : 0;
+  
+  const timeRangeText = daysBack ? ` (last ${daysBack} days)` : '';
+  const swaps: ParsedSwap[] = [];
+  let before: string | undefined = undefined;
+  let batchCount = 0;
+
+  console.log(`Using Helius Enhanced API for accurate trade parsing${timeRangeText}...`);
+
+  while (true) {
+    batchCount++;
+    const url = `${HELIUS_API_BASE}/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=1000${before ? `&before=${before}` : ''}`;
+    
+    try {
+      const response = await retryWithBackoff(
+        () => fetch(url).then(r => {
+          if (!r.ok) throw new Error(`Helius API error: ${r.status}`);
+          return r.json();
+        }),
+        5,
+        1200,
+        onProgress
+      );
+
+      if (!response || response.length === 0) break;
+
+      // Parse each transaction for wallet-centric deltas
+      for (const tx of response) {
+        const blockTime = tx.timestamp || 0;
+        
+        // Stop if we hit the cutoff date
+        if (cutoffTime > 0 && blockTime < cutoffTime) {
+          console.log(`Reached cutoff date after ${batchCount} batches`);
+          before = undefined;
+          break;
+        }
+
+        // Skip failed transactions
+        if (tx.transactionError) continue;
+
+        const swap = parseEnhancedTransaction(tx, walletAddress);
+        if (swap) {
+          swaps.push(swap);
+        }
+      }
+
+      // Stop if we hit cutoff or got fewer results than limit
+      if (!before || response.length < 1000) break;
+
+      before = response[response.length - 1]?.signature;
+      
+      onProgress?.(
+        `Parsing trades${timeRangeText}... (${swaps.length} found)`,
+        10 + Math.min(batchCount * 5, 80)
+      );
+
+      // Rate limiting
+      await sleep(50);
+    } catch (error: any) {
+      console.error(`Error fetching Enhanced batch ${batchCount}:`, error?.message || error);
+      break;
+    }
+  }
+
+  console.log(`Found ${swaps.length} trades via Helius Enhanced API${timeRangeText}`);
+  return swaps;
+}
+
+/**
+ * Parse a Helius Enhanced transaction for wallet-centric token deltas
+ */
+function parseEnhancedTransaction(tx: any, walletAddress: string): ParsedSwap | null {
+  if (!tx.tokenTransfers || tx.tokenTransfers.length === 0) return null;
+
+  // Calculate net token delta for this wallet
+  const tokenDeltas = new Map<string, { delta: number; decimals: number }>();
+  
+  for (const transfer of tx.tokenTransfers) {
+    const mint = transfer.mint;
+    if (!mint) continue;
+
+    const amount = transfer.tokenAmount || 0;
+    const fromWallet = transfer.fromUserAccount === walletAddress;
+    const toWallet = transfer.toUserAccount === walletAddress;
+
+    if (!fromWallet && !toWallet) continue;
+
+    const delta = toWallet ? amount : -amount;
+    const current = tokenDeltas.get(mint) || { delta: 0, decimals: transfer.decimals || 6 };
+    tokenDeltas.set(mint, { 
+      delta: current.delta + delta, 
+      decimals: transfer.decimals || current.decimals 
+    });
+  }
+
+  // Find the traded token (non-stable with largest absolute delta)
+  let tradedToken: { mint: string; delta: number; decimals: number } | null = null;
+  let maxAbsDelta = 0;
+
+  for (const [mint, data] of tokenDeltas.entries()) {
+    if (mint === KNOWN_TOKENS.USDC || mint === KNOWN_TOKENS.USDT) continue;
+    if (Math.abs(data.delta) > maxAbsDelta) {
+      maxAbsDelta = Math.abs(data.delta);
+      tradedToken = { mint, ...data };
+    }
+  }
+
+  if (!tradedToken || maxAbsDelta === 0) return null;
+
+  const isBuy = tradedToken.delta > 0;
+  const tokenAmount = Math.abs(tradedToken.delta);
+
+  // Calculate value side (prefer USDC, fallback to SOL)
+  let valueAmount = 0;
+  const usdcDelta = tokenDeltas.get(KNOWN_TOKENS.USDC);
+  const usdtDelta = tokenDeltas.get(KNOWN_TOKENS.USDT);
+  
+  if (usdcDelta && Math.abs(usdcDelta.delta) > 0) {
+    valueAmount = Math.abs(usdcDelta.delta);
+  } else if (usdtDelta && Math.abs(usdtDelta.delta) > 0) {
+    valueAmount = Math.abs(usdtDelta.delta);
+  } else if (tx.nativeTransfers && tx.nativeTransfers.length > 0) {
+    // Sum native SOL transfers to/from wallet (excluding fees)
+    let solDelta = 0;
+    for (const nativeTransfer of tx.nativeTransfers) {
+      const amount = nativeTransfer.amount || 0;
+      const fromWallet = nativeTransfer.fromUserAccount === walletAddress;
+      const toWallet = nativeTransfer.toUserAccount === walletAddress;
+      
+      if (toWallet) solDelta += amount;
+      if (fromWallet) solDelta -= amount;
+    }
+    valueAmount = Math.abs(solDelta) / 1e9; // Convert lamports to SOL
+  }
+
+  // Must have value movement for valid trade
+  if (valueAmount < 0.001) return null;
+
+  const pricePerToken = tokenAmount > 0 ? valueAmount / tokenAmount : 0;
+
+  // Determine DEX from events
+  let dexName = 'Unknown';
+  if (tx.events?.swap) {
+    dexName = tx.events.swap.nativeInput?.account || 'DEX';
+  }
+
+  return {
+    signature: tx.signature,
+    timestamp: tx.timestamp * 1000,
+    tokenMint: tradedToken.mint,
+    tokenSymbol: '', // Will be fetched
+    tokenName: '',
+    type: isBuy ? 'buy' : 'sell',
+    amountIn: isBuy ? valueAmount : tokenAmount,
+    amountOut: isBuy ? tokenAmount : valueAmount,
+    pricePerToken,
+    dex: dexName,
+  };
+}
+
+/**
+ * Parse DEX swaps from transactions (fallback RPC method)
  */
 export async function parseSwapTransactions(
   transactions: Transaction[],
   daysBack?: number,
   onProgress?: ProgressCallback
 ): Promise<ParsedSwap[]> {
+  // Try Enhanced API first (much more accurate)
+  if (transactions.length > 0 && getHeliusApiKey()) {
+    try {
+      const walletAddress = ''; // Will be passed from analyzePaperhands
+      // Enhanced API is called directly from analyzePaperhands now
+      // This is just the fallback RPC parser
+    } catch (error) {
+      console.warn('Enhanced API failed, using RPC fallback');
+    }
+  }
+
   const swaps: ParsedSwap[] = [];
   const total = transactions.length;
   const timeRangeText = daysBack ? ` (last ${daysBack} days)` : '';
 
-  console.log(`Parsing ${total} transactions${timeRangeText} for coin trades with optimized processing...`);
+  console.log(`Parsing ${total} transactions${timeRangeText} for coin trades (RPC fallback)...`);
 
   // Process in parallel batches of 10 for better performance
   const batchSize = 10;
@@ -271,7 +457,6 @@ export async function parseSwapTransactions(
           }
           return null;
         } catch (error: any) {
-          console.error(`Error parsing transaction ${tx.signature.slice(0, 8)}:`, error?.message || error);
           return null;
         }
       });
@@ -280,7 +465,6 @@ export async function parseSwapTransactions(
       const validSwaps = batchResults.filter((swap): swap is ParsedSwap => swap !== null);
       
       if (validSwaps.length > 0) {
-        console.log(`Batch ${Math.floor(i / batchSize) + 1}: Found ${validSwaps.length} swaps`);
         swaps.push(...validSwaps);
       }
       
@@ -289,12 +473,40 @@ export async function parseSwapTransactions(
         await sleep(50);
       }
     } catch (error: any) {
-      console.error(`Error processing batch ${Math.floor(i / batchSize) + 1}:`, error?.message || error);
+      console.error(`Error processing batch:`, error?.message || error);
     }
   }
 
   console.log(`Found ${swaps.length} coin trades${timeRangeText} (${total} transactions analyzed)`);
   return swaps;
+}
+
+/**
+ * Main entry point: Parse swaps with Enhanced API (preferred) or RPC fallback
+ */
+export async function parseSwapsWithEnhancedAPI(
+  walletAddress: string,
+  daysBack?: number,
+  onProgress?: ProgressCallback
+): Promise<ParsedSwap[]> {
+  // Try Enhanced API first (much more accurate and complete)
+  const enhancedSwaps = await fetchAndParseTradesEnhanced(walletAddress, daysBack, onProgress);
+  
+  if (enhancedSwaps.length > 0) {
+    // Fetch metadata for all tokens
+    console.log(`Fetching metadata for ${enhancedSwaps.length} trades...`);
+    for (const swap of enhancedSwaps) {
+      const metadata = await getTokenMetadata(swap.tokenMint);
+      swap.tokenSymbol = metadata.symbol;
+      swap.tokenName = metadata.name;
+    }
+    return enhancedSwaps;
+  }
+
+  // Fallback to RPC parsing (less accurate, for backwards compatibility)
+  console.warn('Enhanced API returned no results, falling back to RPC parser');
+  const transactions = await fetchWalletTransactions(walletAddress, daysBack, onProgress);
+  return parseSwapTransactions(transactions, daysBack, onProgress);
 }
 
 /**
@@ -437,50 +649,9 @@ export async function fetchCurrentTokenPrice(tokenMint: string): Promise<number>
 }
 
 /**
- * Estimate peak price (simplified version without Birdeye)
- * For production, integrate Birdeye historical API for accurate data
+ * Get current price only (no fake estimates)
+ * Returns 0 if token price unavailable
  */
-export async function getTokenPeakPrice(
-  tokenMint: string,
-  sellPrice: number,
-  sellTimestamp: number
-): Promise<{ price: number; timestamp: number }> {
-  try {
-    // Get current price
-    const currentPrice = await fetchCurrentTokenPrice(tokenMint);
-    
-    // If current price is significantly higher than sell price, use current
-    if (currentPrice > sellPrice * 1.5) {
-      console.log(`Token ${tokenMint}: Current price ($${currentPrice}) is ${((currentPrice / sellPrice - 1) * 100).toFixed(0)}% higher than sell price ($${sellPrice})`);
-      return {
-        price: currentPrice,
-        timestamp: Date.now(),
-      };
-    }
-    
-    // Conservative estimate: assume 2.5-5x potential gain (more realistic than 2-10x)
-    // This is still an estimate - real implementation should use historical price data
-    const estimatedPeakMultiplier = 2.5 + Math.random() * 2.5; // 2.5-5x
-    const estimatedPeak = sellPrice * estimatedPeakMultiplier;
-    
-    const peakPrice = Math.max(currentPrice, estimatedPeak);
-    
-    console.log(`Token ${tokenMint}: Estimated peak $${peakPrice.toFixed(6)} (${estimatedPeakMultiplier.toFixed(1)}x from sell price $${sellPrice.toFixed(6)})`);
-    
-    // Estimate peak date as 30-90 days after sell
-    const daysAfterSell = 30 + Math.random() * 60;
-    const peakTimestamp = sellTimestamp + (daysAfterSell * 24 * 60 * 60 * 1000);
-    
-    return {
-      price: peakPrice,
-      timestamp: peakTimestamp,
-    };
-  } catch (error) {
-    console.error('Error estimating peak price:', error);
-    // Fallback: assume 3x gain if we can't fetch prices
-    return {
-      price: sellPrice * 3,
-      timestamp: sellTimestamp + (60 * 24 * 60 * 60 * 1000),
-    };
-  }
+export async function getCurrentPriceOnly(tokenMint: string): Promise<number> {
+  return fetchCurrentTokenPrice(tokenMint);
 }

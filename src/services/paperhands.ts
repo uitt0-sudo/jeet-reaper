@@ -6,9 +6,8 @@
  */
 
 import { 
-  fetchWalletTransactions, 
-  parseSwapTransactions, 
-  getTokenPeakPrice,
+  parseSwapsWithEnhancedAPI,
+  getCurrentPriceOnly,
   isValidSolanaAddress,
   ProgressCallback
 } from './solana';
@@ -59,18 +58,11 @@ export async function analyzePaperhands(
       ? new Date(endDate.getTime() - daysBack * 24 * 60 * 60 * 1000)
       : new Date(0);
     
-    // Fetch transaction history with date filtering
-    const transactions = await fetchWalletTransactions(walletAddress, daysBack, onProgress);
+    // Parse trades using Enhanced API (accurate, fast)
+    onProgress?.(`Fetching and parsing trades${timeRangeText}...`, 5);
+    const swaps = await parseSwapsWithEnhancedAPI(walletAddress, daysBack, onProgress);
     
-    if (transactions.length === 0) {
-      throw new Error(`No transactions found${timeRangeText}`);
-    }
-
-    console.log(`Fetched ${transactions.length} transactions${timeRangeText}`);
-
-    // Parse coin trades (only buys/sells)
-    onProgress?.(`Parsing DEX transactions${timeRangeText}...`, 10);
-    const swaps = await parseSwapTransactions(transactions, daysBack, onProgress);
+    console.log(`Found ${swaps.length} signatures from Enhanced API${timeRangeText}`);
     
     if (swaps.length === 0) {
       throw new Error(`No coin buys or sells found${timeRangeText}. Only SOL/USDC trades are analyzed.`);
@@ -149,11 +141,8 @@ function groupIntoPositions(swaps: any[]): TradePosition[] {
 }
 
 /**
- * Calculate paperhands events from trading positions
- * A paperhands event occurs when:
- * 1. User bought a token
- * 2. User sold that token
- * 3. Token price went significantly higher after the sell
+ * Calculate paperhands events using CURRENT PRICE ONLY (no fake estimates)
+ * "Regret" = what you missed since sell, based on current price
  */
 async function calculatePaperhandsEvents(
   positions: TradePosition[],
@@ -166,9 +155,13 @@ async function calculatePaperhandsEvents(
     const position = positions[idx];
     const progressPercent = 85 + (idx / totalPositions) * 10; // 85% to 95%
     onProgress?.(`Analyzing ${position.tokenSymbol}...`, progressPercent);
+    
     // Match each sell with its corresponding buys (FIFO)
     const buys = [...position.buys].sort((a, b) => a.timestamp - b.timestamp);
     const sells = [...position.sells].sort((a, b) => a.timestamp - b.timestamp);
+
+    // Get current price once per token
+    const currentPrice = await getCurrentPriceOnly(position.tokenMint);
 
     for (const sell of sells) {
       // Find the buy that corresponds to this sell (FIFO matching)
@@ -176,25 +169,18 @@ async function calculatePaperhandsEvents(
       
       if (!matchingBuy) continue;
 
-      // Get peak price after the sell (estimated without Birdeye)
-      const peakData = await getTokenPeakPrice(
-        position.tokenMint,
-        sell.price,
-        sell.timestamp
-      );
-
-      // Calculate metrics
+      // Calculate metrics using CURRENT PRICE (honest, no estimates)
       const buyValue = matchingBuy.totalCost || (matchingBuy.amount * matchingBuy.price);
       const sellValue = sell.totalValue || (sell.amount * sell.price);
       const realizedProfit = sellValue - buyValue;
       
-      const peakValue = sell.amount * peakData.price;
-      const unrealizedProfit = peakValue - buyValue;
-      const regretAmount = unrealizedProfit - realizedProfit;
-      const regretPercent = buyValue > 0 ? (regretAmount / buyValue) * 100 : 0;
+      // Current value if still holding
+      const currentValue = sell.amount * currentPrice;
+      const missedSinceSell = Math.max(0, currentValue - sellValue);
+      const regretPercent = buyValue > 0 ? (missedSinceSell / buyValue) * 100 : 0;
 
       // Only create event if there's significant regret (>10%)
-      if (regretPercent > 10) {
+      if (regretPercent > 10 && missedSinceSell > 0.01) {
         events.push({
           id: `${position.tokenMint}-${sell.signature}`,
           tokenSymbol: position.tokenSymbol,
@@ -206,11 +192,11 @@ async function calculatePaperhandsEvents(
           sellDate: new Date(sell.timestamp).toISOString().split('T')[0],
           amount: sell.amount,
           realizedProfit,
-          unrealizedProfit,
-          regretAmount,
+          unrealizedProfit: currentValue - buyValue, // What it would be worth now
+          regretAmount: missedSinceSell, // Honest metric: missed since sell
           regretPercent,
-          peakPrice: peakData.price,
-          peakDate: new Date(peakData.timestamp).toISOString().split('T')[0],
+          peakPrice: currentPrice, // Current = "peak" we know about
+          peakDate: new Date().toISOString().split('T')[0], // Today
           txHash: sell.signature.slice(0, 8),
           explorerUrl: `https://solscan.io/tx/${sell.signature}`
         });
@@ -246,14 +232,7 @@ function generateWalletStats(
     return (sell - buy) / (1000 * 60 * 60 * 24); // days
   });
 
-  const shouldaHoldTimes = events.map(e => {
-    const buy = new Date(e.buyDate).getTime();
-    const peak = new Date(e.peakDate || e.sellDate).getTime();
-    return (peak - buy) / (1000 * 60 * 60 * 24); // days
-  });
-
   const avgHoldTime = holdTimes.reduce((a, b) => a + b, 0) / holdTimes.length;
-  const avgShouldaHoldTime = shouldaHoldTimes.reduce((a, b) => a + b, 0) / shouldaHoldTimes.length;
 
   // Calculate win/loss rate
   const wins = events.filter(e => e.realizedProfit > 0).length;
@@ -278,7 +257,7 @@ function generateWalletStats(
     totalExitedEarly: events.length,
     totalEvents: events.length,
     avgHoldTime: Math.round(avgHoldTime),
-    avgShouldaHoldTime: Math.round(avgShouldaHoldTime),
+    avgShouldaHoldTime: 0, // Removed fake "shoulda held" metric
     winRate: Math.round(winRate),
     lossRate: Math.round(100 - winRate),
     topRegrettedTokens: events

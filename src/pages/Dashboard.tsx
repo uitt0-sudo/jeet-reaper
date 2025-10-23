@@ -238,74 +238,51 @@ const Dashboard = () => {
                 {/* Analysis Info Banner */}
                 {walletStats.analysisDateRange && (
                   <Card className="border-primary/20 bg-primary/5 p-4">
-                    <p className="text-center text-sm text-muted-foreground">
-                      Analysis for <span className="font-semibold text-foreground">last {walletStats.analysisDateRange.daysBack} days</span>
-                      {' '}({new Date(walletStats.analysisDateRange.startDate).toLocaleDateString()} - {new Date(walletStats.analysisDateRange.endDate).toLocaleDateString()})
-                    </p>
+                    <div className="space-y-2 text-center">
+                      <p className="text-sm text-muted-foreground">
+                        Analysis for <span className="font-semibold text-foreground">last {walletStats.analysisDateRange.daysBack} days</span>
+                        {' '}({new Date(walletStats.analysisDateRange.startDate).toLocaleDateString()} - {new Date(walletStats.analysisDateRange.endDate).toLocaleDateString()})
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        💡 "Missed Since Sell" uses current prices only. Historical peaks coming soon with Birdeye integration.
+                      </p>
+                    </div>
                   </Card>
                 )}
                 
-                {/* Header Stats */}
+                {/* Header Stats - Simplified and Honest */}
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                   <MetricCard
-                    title="Paperhands Score"
-                    value={walletStats.paperhandsScore}
-                    subtitle="Higher = Worse"
-                    icon={Target}
-                    trend="down"
+                    title="Coins Traded"
+                    value={walletStats.topRegrettedTokens.length}
+                    subtitle={`${walletStats.totalEvents} total events`}
+                    icon={Award}
+                    trend="neutral"
                     delay={0}
                   />
                   <MetricCard
-                    title="Worst Single Loss"
-                    value={`$${walletStats.worstLoss.toLocaleString()}`}
-                    subtitle="Biggest regret"
-                    icon={AlertTriangle}
+                    title="Missed Since Sell"
+                    value={`$${walletStats.totalRegret.toLocaleString()}`}
+                    subtitle="If still holding (current price)"
+                    icon={TrendingDown}
                     trend="down"
                     delay={0.1}
                   />
                   <MetricCard
-                    title="Total Regret"
-                    value={`$${walletStats.totalRegret.toLocaleString()}`}
-                    subtitle={`${walletStats.totalRegretPercent}% missed`}
-                    icon={TrendingDown}
-                    trend="down"
+                    title="Win Rate"
+                    value={`${walletStats.winRate}%`}
+                    subtitle={`${walletStats.totalEvents} trades analyzed`}
+                    icon={Target}
+                    trend={walletStats.winRate > 50 ? "up" : "down"}
                     delay={0.2}
                   />
                   <MetricCard
-                    title="Events Tracked"
-                    value={walletStats.totalEvents}
-                    subtitle={`${walletStats.winRate}% win rate`}
-                    icon={Award}
-                    trend="neutral"
-                    delay={0.3}
-                  />
-                </div>
-
-                {/* Additional Metrics */}
-                <div className="grid gap-6 md:grid-cols-3">
-                  <MetricCard
                     title="Avg Hold Time"
                     value={`${walletStats.avgHoldTime}d`}
-                    subtitle={`Should've held ${walletStats.avgShouldaHoldTime}d`}
+                    subtitle="Days to sell"
                     icon={Clock}
-                    trend="down"
-                    delay={0.4}
-                  />
-                  <MetricCard
-                    title="Early Exits"
-                    value={walletStats.totalExitedEarly}
-                    subtitle="Sold too soon"
-                    icon={DollarSign}
-                    trend="down"
-                    delay={0.5}
-                  />
-                  <MetricCard
-                    title="Regret Rate"
-                    value={`${walletStats.totalRegretPercent}%`}
-                    subtitle="Unrealized vs realized"
-                    icon={Percent}
-                    trend="down"
-                    delay={0.6}
+                    trend="neutral"
+                    delay={0.3}
                   />
                 </div>
 
@@ -421,7 +398,7 @@ const Dashboard = () => {
                   transition={{ delay: 1.0 }}
                 >
                   <Card className="card-money noise-texture p-6">
-                    <h2 className="mb-6 text-2xl font-bold">Top Regretted Tokens</h2>
+                    <h2 className="mb-6 text-2xl font-bold">Top Missed Opportunities</h2>
                     <div className="space-y-4">
                       {walletStats.topRegrettedTokens.map((token, i) => (
                         <div
@@ -436,16 +413,16 @@ const Dashboard = () => {
                               <div>
                                 <h3 className="text-xl font-bold">{token.symbol}</h3>
                                 <p className="text-sm text-muted-foreground">
-                                  Opportunity cost
+                                  Missed since sell
                                 </p>
                               </div>
                             </div>
                             <div className="text-right">
                               <p className="text-3xl font-black text-destructive">
-                                -${token.regretAmount.toLocaleString()}
+                                ${token.regretAmount.toLocaleString()}
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                If you had held longer
+                                At current price
                               </p>
                             </div>
                           </div>
@@ -472,8 +449,8 @@ const Dashboard = () => {
                             <th className="px-4 py-3 text-right font-semibold">Trades</th>
                             <th className="px-4 py-3 text-right font-semibold">Avg Entry</th>
                             <th className="px-4 py-3 text-right font-semibold">Avg Exit</th>
-                            <th className="px-4 py-3 text-right font-semibold">Realized</th>
-                            <th className="px-4 py-3 text-right font-semibold">Regret</th>
+                            <th className="px-4 py-3 text-right font-semibold">Realized PnL</th>
+                            <th className="px-4 py-3 text-right font-semibold">Missed</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -487,11 +464,11 @@ const Dashboard = () => {
                               <td className="px-4 py-4 text-right font-mono text-sm">
                                 ${token.avgExit.toFixed(6)}
                               </td>
-                              <td className="px-4 py-4 text-right font-mono font-semibold text-success">
-                                +${token.realized.toLocaleString()}
+                              <td className={`px-4 py-4 text-right font-mono font-semibold ${token.realized >= 0 ? 'text-success' : 'text-destructive'}`}>
+                                {token.realized >= 0 ? '+' : ''}${token.realized.toLocaleString()}
                               </td>
-                              <td className="px-4 py-4 text-right font-mono font-semibold text-destructive">
-                                -${token.regret.toLocaleString()}
+                              <td className="px-4 py-4 text-right font-mono font-semibold text-muted-foreground">
+                                ${token.regret.toLocaleString()}
                               </td>
                             </tr>
                           ))}
@@ -501,14 +478,14 @@ const Dashboard = () => {
                   </Card>
                 </motion.div>
 
-                {/* Regret Gallery */}
+                {/* Trade Events List - Simplified */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 1.2 }}
                 >
                   <Card className="card-glass noise-texture p-6">
-                    <h2 className="mb-6 text-2xl font-bold">Regret Gallery</h2>
+                    <h2 className="mb-6 text-2xl font-bold">All Trade Events</h2>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                       {walletStats.events.map((event) => (
                         <div
@@ -520,37 +497,45 @@ const Dashboard = () => {
                               <h3 className="text-lg font-bold">{event.tokenSymbol}</h3>
                               <p className="text-xs text-muted-foreground">{event.tokenName}</p>
                             </div>
-                            <span className="rounded-full bg-destructive/10 px-3 py-1 text-xs font-bold text-destructive">
-                              -{event.regretPercent}%
+                            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                              +{event.regretPercent.toFixed(0)}%
                             </span>
                           </div>
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
-                              <span className="text-muted-foreground">Entry:</span>
-                              <span className="font-mono font-medium">${event.buyPrice}</span>
+                              <span className="text-muted-foreground">Buy Price:</span>
+                              <span className="font-mono font-medium">${event.buyPrice.toFixed(6)}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-muted-foreground">Exit:</span>
-                              <span className="font-mono font-medium">${event.sellPrice}</span>
+                              <span className="text-muted-foreground">Sell Price:</span>
+                              <span className="font-mono font-medium">${event.sellPrice.toFixed(6)}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-muted-foreground">Peak:</span>
-                              <span className="font-mono font-medium text-primary">${event.peakPrice}</span>
+                              <span className="text-muted-foreground">Current:</span>
+                              <span className="font-mono font-medium text-primary">${event.peakPrice.toFixed(6)}</span>
                             </div>
                             <div className="flex justify-between border-t border-border pt-2">
-                              <span className="text-muted-foreground">Realized:</span>
-                              <span className="font-mono font-semibold text-success">
-                                +${event.realizedProfit.toLocaleString()}
+                              <span className="text-muted-foreground">Realized PnL:</span>
+                              <span className={`font-mono font-semibold ${event.realizedProfit >= 0 ? 'text-success' : 'text-destructive'}`}>
+                                {event.realizedProfit >= 0 ? '+' : ''}${event.realizedProfit.toFixed(2)}
                               </span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-muted-foreground">Regret:</span>
-                              <span className="font-mono font-bold text-destructive">
-                                -${event.regretAmount.toLocaleString()}
+                              <span className="text-muted-foreground">Missed:</span>
+                              <span className="font-mono font-bold text-muted-foreground">
+                                ${event.regretAmount.toFixed(2)}
                               </span>
                             </div>
+                            <a 
+                              href={event.explorerUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="mt-2 block text-xs text-primary hover:underline"
+                            >
+                              View on Solscan →
+                            </a>
                           </div>
-                          <div className="absolute inset-0 bg-gradient-to-br from-destructive/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                         </div>
                       ))}
                     </div>
