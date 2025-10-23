@@ -7,6 +7,7 @@ import { CursorTrail } from "@/components/CursorTrail";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Leaderboard from "./pages/Leaderboard";
+import Rewards from "./pages/Rewards";
 import HowItWorks from "./pages/HowItWorks";
 import ApiDocs from "./pages/ApiDocs";
 import About from "./pages/About";
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/" element={<Landing />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/rewards" element={<Rewards />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/api" element={<ApiDocs />} />
           <Route path="/about" element={<About />} />

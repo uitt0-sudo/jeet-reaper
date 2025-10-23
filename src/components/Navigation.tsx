@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Trophy, FileQuestion, Code, Info } from "lucide-react";
+import { Home, Trophy, FileQuestion, Code, Info, Gift } from "lucide-react";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png";
@@ -7,6 +7,7 @@ import logo from "@/assets/logo.png";
 const NAV_ITEMS = [
   { path: "/dashboard", icon: Home, label: "Dashboard" },
   { path: "/leaderboard", icon: Trophy, label: "Leaderboard" },
+  { path: "/rewards", icon: Gift, label: "Rewards", badge: "Soon" },
   { path: "/how-it-works", icon: FileQuestion, label: "How It Works" },
   { path: "/api", icon: Code, label: "API Docs" },
   { path: "/about", icon: Info, label: "About" },
@@ -32,12 +33,17 @@ export const Navigation = () => {
               <Button
                 variant={isActive ? "default" : "ghost"}
                 className={cn(
-                  "w-full justify-start transition-all",
+                  "w-full justify-start transition-all relative",
                   isActive ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[var(--shadow-glow)]" : "hover:bg-primary/10 hover:text-primary"
                 )}
               >
                 <item.icon className="mr-3 h-5 w-5" />
                 {item.label}
+                {'badge' in item && (
+                  <span className="ml-auto rounded-full bg-primary/20 px-2 py-0.5 text-xs font-semibold text-primary">
+                    {item.badge}
+                  </span>
+                )}
               </Button>
             </Link>
           );

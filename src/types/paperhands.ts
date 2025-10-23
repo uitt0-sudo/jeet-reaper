@@ -9,10 +9,12 @@ export interface PaperhandsEvent {
   id: string;
   tokenSymbol: string;
   tokenName: string;
+  tokenMint?: string;
   buyPrice: number;
   sellPrice: number;
   buyDate: string;
   sellDate: string;
+  peakDate?: string;
   amount: number;
   realizedProfit: number;
   unrealizedProfit: number;
