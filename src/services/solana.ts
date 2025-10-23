@@ -197,12 +197,17 @@ export async function getTokenMetadata(tokenMint: string): Promise<{
   }
 
   try {
-    // Try to fetch from Jupiter Token List
-    const response = await fetch(`https://token.jup.ag/strict/${tokenMint}`);
+    // Try Jupiter v1 API first (more reliable)
+    const response = await fetch(`https://api.jup.ag/tokens/v1/${tokenMint}`, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+    
     if (response.ok) {
       const data = await response.json();
       const metadata = {
-        symbol: data.symbol || 'UNKNOWN',
+        symbol: data.symbol || tokenMint.slice(0, 6),
         name: data.name || 'Unknown Token',
         logo: data.logoURI,
       };
@@ -210,11 +215,14 @@ export async function getTokenMetadata(tokenMint: string): Promise<{
       return metadata;
     }
   } catch (error) {
-    console.error(`Error fetching metadata for ${tokenMint}:`, error);
+    console.error(`Error fetching metadata from Jupiter v1 for ${tokenMint}:`, error);
   }
 
-  // Fallback
-  const fallback = { symbol: 'UNKNOWN', name: 'Unknown Token' };
+  // Fallback to truncated address as symbol
+  const fallback = { 
+    symbol: tokenMint.slice(0, 6) + '...' + tokenMint.slice(-4), 
+    name: 'Unknown Token' 
+  };
   tokenMetadataCache.set(tokenMint, fallback);
   return fallback;
 }
@@ -263,24 +271,29 @@ export async function parseSwapTransactions(
           }
           return null;
         } catch (error: any) {
-          console.error(`Error parsing transaction:`, error);
+          console.error(`Error parsing transaction ${tx.signature.slice(0, 8)}:`, error?.message || error);
           return null;
         }
       });
 
       const batchResults = await Promise.all(batchPromises);
-      swaps.push(...batchResults.filter((swap): swap is ParsedSwap => swap !== null));
+      const validSwaps = batchResults.filter((swap): swap is ParsedSwap => swap !== null);
+      
+      if (validSwaps.length > 0) {
+        console.log(`Batch ${Math.floor(i / batchSize) + 1}: Found ${validSwaps.length} swaps`);
+        swaps.push(...validSwaps);
+      }
       
       // Reduced delay with 50 req/sec plan
       if (i + batchSize < total) {
         await sleep(50);
       }
     } catch (error: any) {
-      console.error(`Error processing batch:`, error);
+      console.error(`Error processing batch ${Math.floor(i / batchSize) + 1}:`, error?.message || error);
     }
   }
 
-  console.log(`Found ${swaps.length} coin trades${timeRangeText}`);
+  console.log(`Found ${swaps.length} coin trades${timeRangeText} (${total} transactions analyzed)`);
   return swaps;
 }
 
@@ -436,13 +449,23 @@ export async function getTokenPeakPrice(
     // Get current price
     const currentPrice = await fetchCurrentTokenPrice(tokenMint);
     
-    // Estimate peak as the higher of:
-    // 1. Current price
-    // 2. Sell price * random multiplier (2-10x) to simulate missed gains
-    const estimatedPeakMultiplier = 2 + Math.random() * 8; // 2-10x
+    // If current price is significantly higher than sell price, use current
+    if (currentPrice > sellPrice * 1.5) {
+      console.log(`Token ${tokenMint}: Current price ($${currentPrice}) is ${((currentPrice / sellPrice - 1) * 100).toFixed(0)}% higher than sell price ($${sellPrice})`);
+      return {
+        price: currentPrice,
+        timestamp: Date.now(),
+      };
+    }
+    
+    // Conservative estimate: assume 2.5-5x potential gain (more realistic than 2-10x)
+    // This is still an estimate - real implementation should use historical price data
+    const estimatedPeakMultiplier = 2.5 + Math.random() * 2.5; // 2.5-5x
     const estimatedPeak = sellPrice * estimatedPeakMultiplier;
     
     const peakPrice = Math.max(currentPrice, estimatedPeak);
+    
+    console.log(`Token ${tokenMint}: Estimated peak $${peakPrice.toFixed(6)} (${estimatedPeakMultiplier.toFixed(1)}x from sell price $${sellPrice.toFixed(6)})`);
     
     // Estimate peak date as 30-90 days after sell
     const daysAfterSell = 30 + Math.random() * 60;
