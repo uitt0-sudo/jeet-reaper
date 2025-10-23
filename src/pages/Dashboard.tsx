@@ -410,41 +410,61 @@ const Dashboard = () => {
                             key={token.symbol}
                             className="group relative overflow-hidden rounded-xl border border-primary/20 bg-background/50 p-6 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-glow)]"
                           >
-                            <div className="relative z-10 flex items-center justify-between">
-                              <div className="flex items-center space-x-4">
-                                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xl font-bold">
-                                  #{i + 1}
-                                </span>
-                                <div>
-                                  {tokenMint ? (
-                                    <a 
-                                      href={`https://dexscreener.com/solana/${tokenMint}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xl font-bold hover:text-primary transition-colors hover:underline"
-                                    >
-                                      {token.symbol}
-                                    </a>
-                                  ) : (
-                                    <h3 className="text-xl font-bold">{token.symbol}</h3>
-                                  )}
-                                  <p className="text-sm text-muted-foreground">
-                                    Missed since sell
-                                    {marketCap && marketCap > 0 && (
-                                      <span className="ml-2">• MC: ${(marketCap / 1000000).toFixed(1)}M</span>
+                              <div className="relative z-10 flex items-center justify-between">
+                                <div className="flex items-center space-x-4">
+                                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xl font-bold">
+                                    #{i + 1}
+                                  </span>
+                                  <div className="flex items-center gap-3">
+                                    {tokenMint && (
+                                      <img
+                                        src={`https://img.jup.ag/token/${tokenMint}`}
+                                        alt={`${token.symbol} logo`}
+                                        className="h-8 w-8 rounded-full border border-border object-cover"
+                                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                      />
                                     )}
+                                    <div>
+                                      {tokenMint ? (
+                                        <a 
+                                          href={`https://dexscreener.com/solana/${tokenMint}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xl font-bold hover:text-primary transition-colors hover:underline"
+                                        >
+                                          {token.symbol}
+                                        </a>
+                                      ) : (
+                                        <h3 className="text-xl font-bold">{token.symbol}</h3>
+                                      )}
+                                      <p className="text-sm text-muted-foreground">
+                                        Missed since sell
+                                        {marketCap && marketCap > 0 && (
+                                          <span className="ml-2">• MC: ${(marketCap / 1000000).toFixed(1)}M</span>
+                                        )}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-3xl font-black text-destructive">
+                                    ${token.regretAmount.toLocaleString()}
                                   </p>
+                                  <div className="flex items-center justify-end gap-3">
+                                    <p className="text-sm text-muted-foreground">At current price</p>
+                                    {tokenMint && (
+                                      <a
+                                        href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${token.symbol} — missed $${token.regretAmount.toFixed(0)}.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-accent hover:underline"
+                                      >
+                                        Share
+                                      </a>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <p className="text-3xl font-black text-destructive">
-                                  ${token.regretAmount.toLocaleString()}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  At current price
-                                </p>
-                              </div>
-                            </div>
                             <div className="absolute inset-0 bg-gradient-to-r from-destructive/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                           </div>
                         );
@@ -512,31 +532,39 @@ const Dashboard = () => {
                           key={event.id}
                           className="group relative overflow-hidden rounded-xl border border-border bg-background/50 p-5 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-glow)]"
                         >
-                          <div className="mb-4 flex items-start justify-between">
-                            <div>
-                              {event.tokenMint ? (
-                                <a 
-                                  href={`https://dexscreener.com/solana/${event.tokenMint}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-lg font-bold hover:text-primary transition-colors hover:underline"
-                                >
-                                  {event.tokenSymbol}
-                                </a>
-                              ) : (
-                                <h3 className="text-lg font-bold">{event.tokenSymbol}</h3>
-                              )}
-                              <p className="text-xs text-muted-foreground">{event.tokenName}</p>
-                              {event.marketCap && event.marketCap > 0 && (
-                                <p className="text-xs text-primary mt-1">
-                                  MC: ${(event.marketCap / 1000000).toFixed(2)}M
-                                </p>
-                              )}
+                            <div className="mb-4 flex items-start justify-between">
+                              <div className="flex items-center gap-3">
+                                {event.tokenMint && (
+                                  <img
+                                    src={`https://img.jup.ag/token/${event.tokenMint}`}
+                                    alt={`${event.tokenSymbol} logo`}
+                                    className="h-8 w-8 rounded-full border border-border object-cover"
+                                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                )}
+                                <div>
+                                  {event.tokenMint ? (
+                                    <a 
+                                      href={`https://dexscreener.com/solana/${event.tokenMint}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-lg font-bold hover:text-primary transition-colors hover:underline"
+                                    >
+                                      {event.tokenSymbol}
+                                    </a>
+                                  ) : (
+                                    <h3 className="text-lg font-bold">{event.tokenSymbol}</h3>
+                                  )}
+                                  <p className="text-xs text-muted-foreground">{event.tokenName}</p>
+                                  {event.marketCap && event.marketCap > 0 && (
+                                    <p className="text-xs text-primary mt-1">MC: ${(event.marketCap / 1000000).toFixed(2)}M</p>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                                +{event.regretPercent.toFixed(0)}%
+                              </span>
                             </div>
-                            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-                              +{event.regretPercent.toFixed(0)}%
-                            </span>
-                          </div>
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">Buy Price:</span>
@@ -562,14 +590,24 @@ const Dashboard = () => {
                                 ${event.regretAmount.toFixed(2)}
                               </span>
                             </div>
-                            <a 
-                              href={event.explorerUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="mt-2 block text-xs text-primary hover:underline"
-                            >
-                              View on Solscan →
-                            </a>
+                            <div className="flex items-center justify-between gap-3 pt-2">
+                              <a 
+                                href={event.explorerUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline"
+                              >
+                                View on Solscan →
+                              </a>
+                              <a
+                                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${event.tokenSymbol} — missed $${event.regretAmount.toFixed(0)} since selling.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-accent hover:underline"
+                              >
+                                Share on X →
+                              </a>
+                            </div>
                           </div>
                           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                         </div>

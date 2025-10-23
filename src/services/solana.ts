@@ -209,19 +209,40 @@ export async function getTokenMetadata(tokenMint: string): Promise<{
       const metadata = {
         symbol: data.symbol || tokenMint.slice(0, 6),
         name: data.name || 'Unknown Token',
-        logo: data.logoURI,
+        logo: data.logoURI || `https://img.jup.ag/token/${tokenMint}`,
       };
       tokenMetadataCache.set(tokenMint, metadata);
       return metadata;
     }
   } catch (error) {
-    console.error(`Error fetching metadata from Jupiter v1 for ${tokenMint}:`, error);
+    console.warn(`Jupiter metadata failed for ${tokenMint}:`, error);
+  }
+
+  // Fallback: DexScreener base token info
+  try {
+    const r2 = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
+    if (r2.ok) {
+      const d2 = await r2.json();
+      const base = d2?.pairs?.[0]?.baseToken;
+      if (base) {
+        const metadata = {
+          symbol: base.symbol || tokenMint.slice(0, 6),
+          name: base.name || 'Unknown Token',
+          logo: `https://img.jup.ag/token/${tokenMint}`,
+        };
+        tokenMetadataCache.set(tokenMint, metadata);
+        return metadata;
+      }
+    }
+  } catch (e) {
+    console.warn(`DexScreener metadata failed for ${tokenMint}`);
   }
 
   // Fallback to truncated address as symbol
   const fallback = { 
     symbol: tokenMint.slice(0, 6) + '...' + tokenMint.slice(-4), 
-    name: 'Unknown Token' 
+    name: 'Unknown Token',
+    logo: `https://img.jup.ag/token/${tokenMint}`,
   };
   tokenMetadataCache.set(tokenMint, fallback);
   return fallback;
@@ -271,18 +292,17 @@ async function fetchAndParseTradesEnhanced(
 
       console.log(`Batch ${batchCount}: Received ${response.length} transactions from Enhanced API`);
 
-      // Parse each transaction for wallet-centric deltas
+      let reachedCutoff = false;
       let parsedInBatch = 0;
       let skippedNoTokenTransfers = 0;
       let skippedNoTradedToken = 0;
-      
       for (const tx of response) {
         const blockTime = tx.timestamp || 0;
         
         // Stop if we hit the cutoff date
         if (cutoffTime > 0 && blockTime < cutoffTime) {
           console.log(`Reached cutoff date after ${batchCount} batches`);
-          before = undefined;
+          reachedCutoff = true;
           break;
         }
 
@@ -308,7 +328,7 @@ async function fetchAndParseTradesEnhanced(
 
       // Prepare next page and stop when less than limit
       before = response[response.length - 1]?.signature;
-      if (response.length < 1000) break;
+      if (response.length < 1000 || reachedCutoff) break;
       
       onProgress?.(
         `Parsing trades${timeRangeText}... (${swaps.length} found)`,
