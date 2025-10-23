@@ -7,9 +7,11 @@ import { Navigation, TopBar } from "@/components/Navigation";
 import { AnimatedLoader } from "@/components/AnimatedLoader";
 import { MetricCard } from "@/components/MetricCard";
 import { Card } from "@/components/ui/card";
-import { generateMockWalletStats, generateTokenStats } from "@/lib/mockData";
+import { generateTokenStats } from "@/lib/mockData";
 import { WalletStats } from "@/types/paperhands";
 import { toast } from "@/hooks/use-toast";
+import { analyzePaperhands } from "@/services/paperhands";
+import { isValidSolanaAddress } from "@/services/solana";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 const Dashboard = () => {
@@ -17,20 +19,52 @@ const Dashboard = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [walletStats, setWalletStats] = useState<WalletStats | null>(null);
 
-  const handleAnalyze = () => {
-    if (!walletAddress.trim()) {
-      toast({ title: "Error", description: "Please enter a wallet address", variant: "destructive" });
+  const handleAnalyze = async () => {
+    const trimmedAddress = walletAddress.trim();
+    
+    if (!trimmedAddress) {
+      toast({ 
+        title: "Error", 
+        description: "Please enter a wallet address", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (!isValidSolanaAddress(trimmedAddress)) {
+      toast({ 
+        title: "Invalid Address", 
+        description: "Please enter a valid Solana wallet address", 
+        variant: "destructive" 
+      });
       return;
     }
 
     setIsAnalyzing(true);
     setWalletStats(null);
+
+    try {
+      const stats = await analyzePaperhands(trimmedAddress);
+      setWalletStats(stats);
+      toast({ 
+        title: "Analysis Complete!", 
+        description: `Found ${stats.totalEvents} paperhands events with $${stats.totalRegret.toLocaleString()} total regret`,
+      });
+    } catch (error) {
+      console.error('Analysis error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Could not analyze wallet';
+      toast({ 
+        title: "Analysis Failed", 
+        description: errorMessage,
+        variant: "destructive" 
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleAnalysisComplete = () => {
-    setIsAnalyzing(false);
-    const stats = generateMockWalletStats(walletAddress);
-    setWalletStats(stats);
+    // This is now handled in handleAnalyze
   };
 
   // Prepare chart data

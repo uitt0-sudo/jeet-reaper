@@ -19,16 +19,18 @@ interface TradePosition {
   tokenSymbol: string;
   tokenName: string;
   buys: Array<{
+    signature: string;
     timestamp: number;
     amount: number;
     price: number;
-    signature: string;
+    totalCost: number;
   }>;
   sells: Array<{
+    signature: string;
     timestamp: number;
     amount: number;
     price: number;
-    signature: string;
+    totalValue: number;
   }>;
 }
 
@@ -38,18 +40,12 @@ interface TradePosition {
 export async function analyzePaperhands(walletAddress: string): Promise<WalletStats> {
   // Validate address
   if (!isValidSolanaAddress(walletAddress)) {
-    throw new Error('Invalid Solana address');
-  }
-
-  // Check if real API is configured
-  const hasRealAPI = !!import.meta.env.VITE_SOLANA_RPC_URL;
-  
-  if (!hasRealAPI) {
-    console.warn('No RPC configured - using mock data');
-    return generateMockWalletStats(walletAddress);
+    throw new Error('Invalid Solana wallet address');
   }
 
   try {
+    console.log('Starting analysis for wallet:', walletAddress);
+    
     // Fetch transaction history
     const transactions = await fetchWalletTransactions(walletAddress);
     
@@ -57,18 +53,30 @@ export async function analyzePaperhands(walletAddress: string): Promise<WalletSt
       throw new Error('No transactions found for this wallet');
     }
 
+    console.log(`Fetched ${transactions.length} transactions`);
+
     // Parse DEX swaps
     const swaps = await parseSwapTransactions(transactions);
     
     if (swaps.length === 0) {
-      throw new Error('No DEX trades found for this wallet');
+      throw new Error('No DEX swaps found. This wallet may not have traded on supported DEXs (Jupiter, Raydium, Orca, Phoenix).');
     }
+
+    console.log(`Parsed ${swaps.length} swap transactions`);
 
     // Group by token and match buys with sells
     const positions = groupIntoPositions(swaps);
 
+    console.log(`Grouped into ${positions.length} trading positions`);
+
     // Calculate paperhands events
     const events = await calculatePaperhandsEvents(positions);
+
+    if (events.length === 0) {
+      throw new Error('No paperhands events detected. This wallet may have held their positions well!');
+    }
+
+    console.log(`Found ${events.length} paperhands events`);
 
     // Generate final stats
     const stats = generateWalletStats(walletAddress, events);
@@ -76,8 +84,7 @@ export async function analyzePaperhands(walletAddress: string): Promise<WalletSt
     return stats;
   } catch (error) {
     console.error('Error analyzing wallet:', error);
-    // Fallback to mock data on error
-    return generateMockWalletStats(walletAddress);
+    throw error;
   }
 }
 
@@ -102,17 +109,19 @@ function groupIntoPositions(swaps: any[]): TradePosition[] {
     
     if (swap.type === 'buy') {
       position.buys.push({
+        signature: swap.signature,
         timestamp: swap.timestamp,
         amount: swap.amountOut,
         price: swap.pricePerToken,
-        signature: swap.signature
+        totalCost: swap.amountIn
       });
     } else {
       position.sells.push({
+        signature: swap.signature,
         timestamp: swap.timestamp,
         amount: swap.amountIn,
         price: swap.pricePerToken,
-        signature: swap.signature
+        totalValue: swap.amountOut
       });
     }
   }
@@ -143,22 +152,22 @@ async function calculatePaperhandsEvents(
       
       if (!matchingBuy) continue;
 
-      // Get peak price after the sell (next 180 days)
+      // Get peak price after the sell (estimated without Birdeye)
       const peakData = await getTokenPeakPrice(
         position.tokenMint,
-        sell.timestamp,
-        sell.timestamp + (180 * 24 * 60 * 60 * 1000) // 180 days
+        sell.price,
+        sell.timestamp
       );
 
       // Calculate metrics
-      const buyValue = matchingBuy.amount * matchingBuy.price;
-      const sellValue = sell.amount * sell.price;
+      const buyValue = matchingBuy.totalCost || (matchingBuy.amount * matchingBuy.price);
+      const sellValue = sell.totalValue || (sell.amount * sell.price);
       const realizedProfit = sellValue - buyValue;
       
       const peakValue = sell.amount * peakData.price;
       const unrealizedProfit = peakValue - buyValue;
       const regretAmount = unrealizedProfit - realizedProfit;
-      const regretPercent = (regretAmount / buyValue) * 100;
+      const regretPercent = buyValue > 0 ? (regretAmount / buyValue) * 100 : 0;
 
       // Only create event if there's significant regret (>10%)
       if (regretPercent > 10) {
