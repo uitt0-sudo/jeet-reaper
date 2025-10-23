@@ -21,6 +21,7 @@ export interface PaperhandsEvent {
   regretAmount: number;
   regretPercent: number;
   peakPrice: number;
+  marketCap?: number;
   txHash: string;
   explorerUrl: string;
 }

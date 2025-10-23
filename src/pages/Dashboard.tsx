@@ -400,35 +400,55 @@ const Dashboard = () => {
                   <Card className="card-money noise-texture p-6">
                     <h2 className="mb-6 text-2xl font-bold">Top Missed Opportunities</h2>
                     <div className="space-y-4">
-                      {walletStats.topRegrettedTokens.map((token, i) => (
-                        <div
-                          key={token.symbol}
-                          className="group relative overflow-hidden rounded-xl border border-primary/20 bg-background/50 p-6 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-glow)]"
-                        >
-                          <div className="relative z-10 flex items-center justify-between">
-                            <div className="flex items-center space-x-4">
-                              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xl font-bold">
-                                #{i + 1}
-                              </span>
-                              <div>
-                                <h3 className="text-xl font-bold">{token.symbol}</h3>
+                      {walletStats.topRegrettedTokens.map((token, i) => {
+                        const event = walletStats.events.find(e => e.tokenSymbol === token.symbol);
+                        const tokenMint = event?.tokenMint;
+                        const marketCap = event?.marketCap;
+                        
+                        return (
+                          <div
+                            key={token.symbol}
+                            className="group relative overflow-hidden rounded-xl border border-primary/20 bg-background/50 p-6 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-glow)]"
+                          >
+                            <div className="relative z-10 flex items-center justify-between">
+                              <div className="flex items-center space-x-4">
+                                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xl font-bold">
+                                  #{i + 1}
+                                </span>
+                                <div>
+                                  {tokenMint ? (
+                                    <a 
+                                      href={`https://dexscreener.com/solana/${tokenMint}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xl font-bold hover:text-primary transition-colors hover:underline"
+                                    >
+                                      {token.symbol}
+                                    </a>
+                                  ) : (
+                                    <h3 className="text-xl font-bold">{token.symbol}</h3>
+                                  )}
+                                  <p className="text-sm text-muted-foreground">
+                                    Missed since sell
+                                    {marketCap && marketCap > 0 && (
+                                      <span className="ml-2">• MC: ${(marketCap / 1000000).toFixed(1)}M</span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-3xl font-black text-destructive">
+                                  ${token.regretAmount.toLocaleString()}
+                                </p>
                                 <p className="text-sm text-muted-foreground">
-                                  Missed since sell
+                                  At current price
                                 </p>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <p className="text-3xl font-black text-destructive">
-                                ${token.regretAmount.toLocaleString()}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                At current price
-                              </p>
-                            </div>
+                            <div className="absolute inset-0 bg-gradient-to-r from-destructive/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                           </div>
-                          <div className="absolute inset-0 bg-gradient-to-r from-destructive/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </Card>
                 </motion.div>
@@ -494,8 +514,24 @@ const Dashboard = () => {
                         >
                           <div className="mb-4 flex items-start justify-between">
                             <div>
-                              <h3 className="text-lg font-bold">{event.tokenSymbol}</h3>
+                              {event.tokenMint ? (
+                                <a 
+                                  href={`https://dexscreener.com/solana/${event.tokenMint}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-lg font-bold hover:text-primary transition-colors hover:underline"
+                                >
+                                  {event.tokenSymbol}
+                                </a>
+                              ) : (
+                                <h3 className="text-lg font-bold">{event.tokenSymbol}</h3>
+                              )}
                               <p className="text-xs text-muted-foreground">{event.tokenName}</p>
+                              {event.marketCap && event.marketCap > 0 && (
+                                <p className="text-xs text-primary mt-1">
+                                  MC: ${(event.marketCap / 1000000).toFixed(2)}M
+                                </p>
+                              )}
                             </div>
                             <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
                               +{event.regretPercent.toFixed(0)}%

@@ -8,6 +8,7 @@
 import { 
   parseSwapsWithEnhancedAPI,
   getCurrentPriceOnly,
+  fetchTokenMarketCap,
   isValidSolanaAddress,
   ProgressCallback
 } from './solana';
@@ -162,10 +163,12 @@ async function calculatePaperhandsEvents(
 
     // Get current price once per token (may fail for dead/unlisted tokens)
     let currentPrice = 0;
+    let marketCap = 0;
     try {
       currentPrice = await getCurrentPriceOnly(position.tokenMint);
+      marketCap = await fetchTokenMarketCap(position.tokenMint);
     } catch (error) {
-      console.warn(`Could not fetch current price for ${position.tokenSymbol}, using sell price`);
+      console.warn(`Could not fetch data for ${position.tokenSymbol}`);
     }
 
     for (const sell of sells) {
@@ -207,6 +210,7 @@ async function calculatePaperhandsEvents(
           regretPercent,
           peakPrice: effectiveCurrentPrice,
           peakDate: new Date().toISOString().split('T')[0],
+          marketCap,
           txHash: sell.signature.slice(0, 8),
           explorerUrl: `https://solscan.io/tx/${sell.signature}`
         });

@@ -273,6 +273,9 @@ async function fetchAndParseTradesEnhanced(
 
       // Parse each transaction for wallet-centric deltas
       let parsedInBatch = 0;
+      let skippedNoTokenTransfers = 0;
+      let skippedNoTradedToken = 0;
+      
       for (const tx of response) {
         const blockTime = tx.timestamp || 0;
         
@@ -285,15 +288,23 @@ async function fetchAndParseTradesEnhanced(
 
         // Skip failed transactions
         if (tx.transactionError) continue;
+        
+        // Track why swaps are skipped
+        if (!tx.tokenTransfers || tx.tokenTransfers.length === 0) {
+          skippedNoTokenTransfers++;
+          continue;
+        }
 
         const swap = parseEnhancedTransaction(tx, walletAddress);
         if (swap) {
           swaps.push(swap);
           parsedInBatch++;
+        } else {
+          skippedNoTradedToken++;
         }
       }
 
-      console.log(`Batch ${batchCount}: Parsed ${parsedInBatch} trades (${swaps.length} total so far)`);
+      console.log(`Batch ${batchCount}: Parsed ${parsedInBatch} trades, skipped ${skippedNoTokenTransfers} (no token transfers), ${skippedNoTradedToken} (no valid trade) - ${swaps.length} total so far`);
 
       // Prepare next page and stop when less than limit
       before = response[response.length - 1]?.signature;
@@ -362,7 +373,7 @@ function parseEnhancedTransaction(tx: any, walletAddress: string): ParsedSwap | 
   const isBuy = tradedToken.delta > 0;
   const tokenAmount = Math.abs(tradedToken.delta);
 
-  // Calculate value side (prefer USDC, fallback to SOL)
+  // Calculate value side (prefer USDC, fallback to SOL, accept token-to-token)
   let valueAmount = 0;
   const usdcDelta = tokenDeltas.get(KNOWN_TOKENS.USDC);
   const usdtDelta = tokenDeltas.get(KNOWN_TOKENS.USDT);
@@ -383,12 +394,21 @@ function parseEnhancedTransaction(tx: any, walletAddress: string): ParsedSwap | 
       if (fromWallet) solDelta -= amount;
     }
     valueAmount = Math.abs(solDelta) / 1e9; // Convert lamports to SOL
+  } else {
+    // Token-to-token swap (no clear USDC/SOL side)
+    // Look for the second largest token delta (the "value" side)
+    const sortedDeltas = Array.from(tokenDeltas.entries())
+      .filter(([mint]) => mint !== tradedToken.mint && mint !== KNOWN_TOKENS.SOL)
+      .sort(([, a], [, b]) => Math.abs(b.delta) - Math.abs(a.delta));
+    
+    if (sortedDeltas.length > 0) {
+      // Use the counter-token as value (will need price lookup later)
+      valueAmount = Math.abs(sortedDeltas[0][1].delta);
+    }
   }
 
-  // Must have value movement for valid trade
-  if (valueAmount < 0.001) return null;
-
-  const pricePerToken = tokenAmount > 0 ? valueAmount / tokenAmount : 0;
+  // Accept ALL trades, even with no clear value (we'll price them later)
+  const pricePerToken = (tokenAmount > 0 && valueAmount > 0) ? valueAmount / tokenAmount : 0;
 
   // Determine DEX from events
   let dexName = 'Unknown';
@@ -640,31 +660,36 @@ export async function getTokenBalance(
  * Fetch current token price from Jupiter
  */
 export async function fetchCurrentTokenPrice(tokenMint: string): Promise<number> {
-  // Try Jupiter first
+  // DexScreener only (more reliable for current price + market cap)
   try {
-    const response = await fetch(`${JUPITER_PRICE_API}?ids=${tokenMint}`);
+    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
     if (response.ok) {
       const data = await response.json();
-      const price = data?.data?.[tokenMint]?.price;
-      if (typeof price === 'number' && price > 0) return price;
-    }
-  } catch (error) {
-    console.warn('Jupiter price fetch failed, falling back to DexScreener');
-  }
-
-  // Fallback: DexScreener (public, reliable CORS)
-  try {
-    const r2 = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
-    if (r2.ok) {
-      const d2 = await r2.json();
-      const priceUsd = d2?.pairs?.[0]?.priceUsd;
+      const priceUsd = data?.pairs?.[0]?.priceUsd;
       const parsed = priceUsd ? parseFloat(priceUsd) : 0;
       if (Number.isFinite(parsed) && parsed > 0) return parsed;
     }
   } catch (error) {
-    console.warn('DexScreener price fetch failed');
+    console.warn('DexScreener price fetch failed for', tokenMint);
   }
 
+  return 0;
+}
+
+/**
+ * Fetch token market cap from DexScreener
+ */
+export async function fetchTokenMarketCap(tokenMint: string): Promise<number> {
+  try {
+    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
+    if (response.ok) {
+      const data = await response.json();
+      const marketCap = data?.pairs?.[0]?.fdv || data?.pairs?.[0]?.marketCap;
+      return marketCap ? parseFloat(marketCap) : 0;
+    }
+  } catch (error) {
+    console.warn('Market cap fetch failed for', tokenMint);
+  }
   return 0;
 }
 
