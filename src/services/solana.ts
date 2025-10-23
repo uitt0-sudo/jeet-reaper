@@ -295,10 +295,9 @@ async function fetchAndParseTradesEnhanced(
 
       console.log(`Batch ${batchCount}: Parsed ${parsedInBatch} trades (${swaps.length} total so far)`);
 
-      // Stop if we hit cutoff or got fewer results than limit
-      if (!before || response.length < 1000) break;
-
+      // Prepare next page and stop when less than limit
       before = response[response.length - 1]?.signature;
+      if (response.length < 1000) break;
       
       onProgress?.(
         `Parsing trades${timeRangeText}... (${swaps.length} found)`,
@@ -394,7 +393,7 @@ function parseEnhancedTransaction(tx: any, walletAddress: string): ParsedSwap | 
   // Determine DEX from events
   let dexName = 'Unknown';
   if (tx.events?.swap) {
-    dexName = tx.events.swap.nativeInput?.account || 'DEX';
+    dexName = tx.events.swap?.protocol || tx.events.swap?.nativeInput?.account || 'DEX';
   }
 
   return {
@@ -641,19 +640,32 @@ export async function getTokenBalance(
  * Fetch current token price from Jupiter
  */
 export async function fetchCurrentTokenPrice(tokenMint: string): Promise<number> {
+  // Try Jupiter first
   try {
     const response = await fetch(`${JUPITER_PRICE_API}?ids=${tokenMint}`);
-    const data = await response.json();
-    
-    if (data.data && data.data[tokenMint]) {
-      return data.data[tokenMint].price || 0;
+    if (response.ok) {
+      const data = await response.json();
+      const price = data?.data?.[tokenMint]?.price;
+      if (typeof price === 'number' && price > 0) return price;
     }
-    
-    return 0;
   } catch (error) {
-    console.error('Error fetching token price:', error);
-    return 0;
+    console.warn('Jupiter price fetch failed, falling back to DexScreener');
   }
+
+  // Fallback: DexScreener (public, reliable CORS)
+  try {
+    const r2 = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
+    if (r2.ok) {
+      const d2 = await r2.json();
+      const priceUsd = d2?.pairs?.[0]?.priceUsd;
+      const parsed = priceUsd ? parseFloat(priceUsd) : 0;
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+  } catch (error) {
+    console.warn('DexScreener price fetch failed');
+  }
+
+  return 0;
 }
 
 /**
