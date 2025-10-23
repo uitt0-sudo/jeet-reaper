@@ -50,6 +50,11 @@ export interface WalletStats {
     regretAmount: number;
   }>;
   events: PaperhandsEvent[];
+  analysisDateRange?: {
+    startDate: string;
+    endDate: string;
+    daysBack: number;
+  };
 }
 
 export interface LeaderboardEntry {

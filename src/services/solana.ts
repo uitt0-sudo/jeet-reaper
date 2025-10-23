@@ -89,33 +89,80 @@ export function isValidSolanaAddress(address: string): boolean {
 }
 
 /**
- * Fetch transactions for a wallet address (limited to 300 for performance)
+ * Fetch transactions for a wallet address with date range filtering
  */
 export async function fetchWalletTransactions(
   walletAddress: string,
-  limit: number = 300,
+  daysBack?: number,
   onProgress?: ProgressCallback
 ): Promise<Transaction[]> {
   try {
-    onProgress?.('Fetching transaction history...', 5);
-    console.log(`Fetching last ${limit} transactions for ${walletAddress}...`);
+    const cutoffTime = daysBack 
+      ? Math.floor(Date.now() / 1000) - (daysBack * 24 * 60 * 60)
+      : 0;
+    
+    const timeRangeText = daysBack ? ` (last ${daysBack} days)` : '';
+    onProgress?.(`Fetching transaction history${timeRangeText}...`, 5);
+    console.log(`Fetching transactions${timeRangeText} for ${walletAddress}...`);
+    
     const pubkey = new PublicKey(walletAddress);
+    const allSignatures: Transaction[] = [];
+    let before: string | undefined = undefined;
+    let batchCount = 0;
     
-    const signatures = await retryWithBackoff(() => 
-      connection.getSignaturesForAddress(pubkey, { limit })
-    );
+    // Smart pagination with date cutoff
+    while (true) {
+      batchCount++;
+      const batchSize = 1000;
+      
+      const signatures = await retryWithBackoff(
+        () => connection.getSignaturesForAddress(pubkey, { 
+          limit: batchSize,
+          before 
+        }),
+        5,
+        1200,
+        onProgress
+      );
+      
+      if (signatures.length === 0) break;
+      
+      // Filter successful transactions and check cutoff
+      const filtered = signatures
+        .filter(sig => !sig.err && (sig.blockTime || 0) >= cutoffTime)
+        .map(sig => ({
+          signature: sig.signature,
+          blockTime: sig.blockTime || 0,
+          slot: sig.slot,
+          err: sig.err,
+        }));
+      
+      allSignatures.push(...filtered);
+      
+      // Stop if we hit the cutoff date
+      const oldestBlockTime = signatures[signatures.length - 1]?.blockTime || 0;
+      if (cutoffTime > 0 && oldestBlockTime < cutoffTime) {
+        console.log(`Reached cutoff date after ${batchCount} batches`);
+        break;
+      }
+      
+      // Stop if we got fewer signatures than requested (end of history)
+      if (signatures.length < batchSize) {
+        break;
+      }
+      
+      before = signatures[signatures.length - 1].signature;
+      
+      onProgress?.(
+        `Fetching transactions${timeRangeText}... (${allSignatures.length} found)`,
+        Math.min(5 + batchCount, 10)
+      );
+    }
     
-    onProgress?.('Found transaction signatures...', 10);
-    console.log(`Found ${signatures.length} transactions`);
+    onProgress?.(`Found ${allSignatures.length} transactions${timeRangeText}`, 10);
+    console.log(`Found ${allSignatures.length} transactions${timeRangeText}`);
     
-    return signatures
-      .filter(sig => !sig.err) // Only successful transactions
-      .map(sig => ({
-        signature: sig.signature,
-        blockTime: sig.blockTime || 0,
-        slot: sig.slot,
-        err: sig.err,
-      }));
+    return allSignatures;
   } catch (error) {
     console.error('Error fetching transactions:', error);
     throw new Error('Failed to fetch wallet transactions. Rate limit may be exceeded, try again in a moment.');
@@ -174,54 +221,66 @@ export async function getTokenMetadata(tokenMint: string): Promise<{
 
 /**
  * Parse DEX swaps from transactions (only coin buys/sells, not swaps)
+ * Optimized for parallel processing with the Helius plan
  */
 export async function parseSwapTransactions(
   transactions: Transaction[],
+  daysBack?: number,
   onProgress?: ProgressCallback
 ): Promise<ParsedSwap[]> {
   const swaps: ParsedSwap[] = [];
   const total = transactions.length;
+  const timeRangeText = daysBack ? ` (last ${daysBack} days)` : '';
 
-  console.log(`Parsing ${total} transactions for coin trades (sequential to avoid rate limits)...`);
+  console.log(`Parsing ${total} transactions${timeRangeText} for coin trades with optimized processing...`);
 
-  for (let i = 0; i < total; i++) {
-    const tx = transactions[i];
-    const progress = 10 + Math.floor(((i + 1) / total) * 80); // 10% to 90%
+  // Process in parallel batches of 10 for better performance
+  const batchSize = 10;
+  for (let i = 0; i < total; i += batchSize) {
+    const batch = transactions.slice(i, Math.min(i + batchSize, total));
+    const progress = 10 + Math.floor(((i + batch.length) / total) * 80); // 10% to 90%
     
     onProgress?.(
-      `Analyzing transaction ${i + 1}/${total}...`,
+      `Analyzing ${i + batch.length}/${total} transactions${timeRangeText}...`,
       progress
     );
 
     try {
-      // Fetch single transaction with retry logic
-      const parsedTx = await retryWithBackoff(
-        () => connection.getParsedTransaction(tx.signature, {
-          maxSupportedTransactionVersion: 0
-        }),
-        5,
-        1200,
-        onProgress
-      );
+      // Process batch in parallel
+      const batchPromises = batch.map(async (tx) => {
+        try {
+          const parsedTx = await retryWithBackoff(
+            () => connection.getParsedTransaction(tx.signature, {
+              maxSupportedTransactionVersion: 0
+            }),
+            5,
+            1200,
+            onProgress
+          );
 
-      if (parsedTx && parsedTx.meta && !parsedTx.meta.err) {
-        const swap = await parseTransaction(parsedTx, tx);
-        if (swap) {
-          swaps.push(swap);
+          if (parsedTx && parsedTx.meta && !parsedTx.meta.err) {
+            return await parseTransaction(parsedTx, tx);
+          }
+          return null;
+        } catch (error: any) {
+          console.error(`Error parsing transaction:`, error);
+          return null;
         }
-      }
+      });
+
+      const batchResults = await Promise.all(batchPromises);
+      swaps.push(...batchResults.filter((swap): swap is ParsedSwap => swap !== null));
       
-      // Add delay between requests to avoid rate limits
-      if (i < total - 1) {
-        await sleep(120); // 120ms between transactions
+      // Reduced delay with 50 req/sec plan
+      if (i + batchSize < total) {
+        await sleep(50);
       }
     } catch (error: any) {
-      console.error(`Error parsing transaction ${i + 1}:`, error);
-      // Continue processing remaining transactions even if one fails
+      console.error(`Error processing batch:`, error);
     }
   }
 
-  console.log(`Found ${swaps.length} coin trades (buys/sells only)`);
+  console.log(`Found ${swaps.length} coin trades${timeRangeText}`);
   return swaps;
 }
 

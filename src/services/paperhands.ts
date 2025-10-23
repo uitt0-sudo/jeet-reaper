@@ -40,6 +40,7 @@ interface TradePosition {
  */
 export async function analyzePaperhands(
   walletAddress: string,
+  daysBack?: number,
   onProgress?: ProgressCallback
 ): Promise<WalletStats> {
   // Validate address
@@ -48,48 +49,55 @@ export async function analyzePaperhands(
   }
 
   try {
-    console.log('Starting analysis for wallet:', walletAddress);
-    onProgress?.('Starting wallet analysis...', 0);
+    const timeRangeText = daysBack ? ` (last ${daysBack} days)` : '';
+    console.log(`Starting analysis${timeRangeText} for wallet:`, walletAddress);
+    onProgress?.(`Starting wallet analysis${timeRangeText}...`, 0);
     
-    // Fetch transaction history (limited to 300)
-    const transactions = await fetchWalletTransactions(walletAddress, 300, onProgress);
+    // Calculate date range
+    const endDate = new Date();
+    const startDate = daysBack 
+      ? new Date(endDate.getTime() - daysBack * 24 * 60 * 60 * 1000)
+      : new Date(0);
+    
+    // Fetch transaction history with date filtering
+    const transactions = await fetchWalletTransactions(walletAddress, daysBack, onProgress);
     
     if (transactions.length === 0) {
-      throw new Error('No transactions found for this wallet');
+      throw new Error(`No transactions found${timeRangeText}`);
     }
 
-    console.log(`Fetched ${transactions.length} transactions`);
+    console.log(`Fetched ${transactions.length} transactions${timeRangeText}`);
 
     // Parse coin trades (only buys/sells)
-    onProgress?.('Parsing DEX transactions...', 10);
-    const swaps = await parseSwapTransactions(transactions, onProgress);
+    onProgress?.(`Parsing DEX transactions${timeRangeText}...`, 10);
+    const swaps = await parseSwapTransactions(transactions, daysBack, onProgress);
     
     if (swaps.length === 0) {
-      throw new Error('No coin buys or sells found in the last 300 transactions. Only SOL/USDC trades are analyzed.');
+      throw new Error(`No coin buys or sells found${timeRangeText}. Only SOL/USDC trades are analyzed.`);
     }
 
-    console.log(`Parsed ${swaps.length} coin trades`);
+    console.log(`Parsed ${swaps.length} coin trades${timeRangeText}`);
 
     // Group by token and match buys with sells
-    onProgress?.('Grouping trades by token...', 80);
+    onProgress?.(`Grouping trades by token${timeRangeText}...`, 80);
     const positions = groupIntoPositions(swaps);
 
     console.log(`Grouped into ${positions.length} trading positions`);
 
     // Calculate paperhands events
-    onProgress?.('Calculating regret metrics...', 85);
+    onProgress?.(`Calculating regret metrics${timeRangeText}...`, 85);
     const events = await calculatePaperhandsEvents(positions, onProgress);
 
     if (events.length === 0) {
-      throw new Error('No paperhands events detected. This wallet may have held their positions well!');
+      throw new Error(`No paperhands events detected${timeRangeText}. This wallet may have held their positions well!`);
     }
 
     console.log(`Found ${events.length} paperhands events`);
 
     // Generate final stats
-    onProgress?.('Calculating regret metrics...', 90);
-    onProgress?.('Generating final report...', 95);
-    const stats = generateWalletStats(walletAddress, events);
+    onProgress?.(`Calculating regret metrics${timeRangeText}...`, 90);
+    onProgress?.(`Generating final report${timeRangeText}...`, 95);
+    const stats = generateWalletStats(walletAddress, events, daysBack, startDate, endDate);
 
     onProgress?.('Analysis complete!', 100);
     return stats;
@@ -218,7 +226,10 @@ async function calculatePaperhandsEvents(
  */
 function generateWalletStats(
   address: string,
-  events: PaperhandsEvent[]
+  events: PaperhandsEvent[],
+  daysBack?: number,
+  startDate?: Date,
+  endDate?: Date
 ): WalletStats {
   if (events.length === 0) {
     throw new Error('No paperhands events found for this wallet');
@@ -276,7 +287,12 @@ function generateWalletStats(
         symbol: e.tokenSymbol,
         regretAmount: e.regretAmount
       })),
-    events
+    events,
+    analysisDateRange: daysBack && startDate && endDate ? {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      daysBack
+    } : undefined
   };
 }
 

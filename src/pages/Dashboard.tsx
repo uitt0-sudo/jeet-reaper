@@ -7,15 +7,19 @@ import { Navigation, TopBar } from "@/components/Navigation";
 import { AnimatedLoader } from "@/components/AnimatedLoader";
 import { MetricCard } from "@/components/MetricCard";
 import { Card } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { generateTokenStats } from "@/lib/mockData";
 import { WalletStats } from "@/types/paperhands";
 import { toast } from "@/hooks/use-toast";
 import { analyzePaperhands } from "@/services/paperhands";
 import { isValidSolanaAddress } from "@/services/solana";
-import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
 
 const Dashboard = () => {
   const [walletAddress, setWalletAddress] = useState("");
+  const [selectedDays, setSelectedDays] = useState<number>(30);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [walletStats, setWalletStats] = useState<WalletStats | null>(null);
   const [progressMessage, setProgressMessage] = useState("");
@@ -48,16 +52,18 @@ const Dashboard = () => {
     setProgressPercent(0);
 
     try {
-      const stats = await analyzePaperhands(trimmedAddress, (message, percent) => {
+      const stats = await analyzePaperhands(trimmedAddress, selectedDays, (message, percent) => {
         setProgressMessage(message);
         setProgressPercent(percent);
       });
       setWalletStats(stats);
+      
+      const timeRangeText = `last ${selectedDays} days`;
       toast({ 
         title: "Analysis Complete!", 
         description: stats.totalEvents > 0 
-          ? `Found ${stats.totalEvents} paperhands events (Last 300 transactions analyzed)`
-          : "No paperhands events detected (Last 300 transactions analyzed)",
+          ? `Found ${stats.totalEvents} paperhands events (${timeRangeText})`
+          : `No paperhands events detected (${timeRangeText})`,
       });
     } catch (error) {
       console.error('Analysis error:', error);
@@ -116,8 +122,72 @@ const Dashboard = () => {
             <div className="relative z-10">
               <h1 className="mb-2 text-4xl font-black text-primary">Analyze Your Paperhands</h1>
               <p className="mb-6 text-muted-foreground">
-                Enter any Solana wallet address to analyze their last 300 coin trades. No connection required.
+                Enter any Solana wallet address to analyze their coin trades. No connection required.
               </p>
+              
+              {/* Time Range Selector */}
+              <div className="mb-6">
+                <h3 className="mb-3 text-sm font-semibold text-foreground">Time Range</h3>
+                <RadioGroup 
+                  value={selectedDays.toString()} 
+                  onValueChange={(value) => setSelectedDays(Number(value))}
+                  className="grid grid-cols-2 gap-3 md:grid-cols-4"
+                >
+                  <div className="relative">
+                    <RadioGroupItem value="7" id="7days" className="peer sr-only" />
+                    <Label
+                      htmlFor="7days"
+                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/20 bg-background/50 p-3 transition-all hover:border-primary/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
+                    >
+                      <span className="font-bold">Last 7 Days</span>
+                      <span className="text-xs text-muted-foreground">~30-45 sec</span>
+                    </Label>
+                  </div>
+                  
+                  <div className="relative">
+                    <RadioGroupItem value="30" id="30days" className="peer sr-only" />
+                    <Label
+                      htmlFor="30days"
+                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/20 bg-background/50 p-3 transition-all hover:border-primary/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
+                    >
+                      <span className="font-bold">Last 30 Days</span>
+                      <span className="text-xs text-muted-foreground">~1-2 min</span>
+                    </Label>
+                  </div>
+                  
+                  <div className="relative">
+                    <RadioGroupItem value="90" id="90days" className="peer sr-only" />
+                    <Label
+                      htmlFor="90days"
+                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/20 bg-background/50 p-3 transition-all hover:border-primary/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
+                    >
+                      <span className="font-bold">Last 90 Days</span>
+                      <span className="text-xs text-muted-foreground">~2-3 min</span>
+                    </Label>
+                  </div>
+                  
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="relative">
+                          <RadioGroupItem value="all" id="alltime" className="peer sr-only" disabled />
+                          <Label
+                            htmlFor="alltime"
+                            className="flex cursor-not-allowed flex-col items-center justify-center rounded-lg border-2 border-muted/20 bg-muted/10 p-3 opacity-50"
+                          >
+                            <span className="font-bold">All Time</span>
+                            <span className="text-xs text-muted-foreground">Coming soon</span>
+                          </Label>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Coming soon - Full history analysis with database caching</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </RadioGroup>
+              </div>
+              
               <div className="flex gap-3">
                 <Input
                   placeholder="Enter Solana wallet address (e.g., 9xK2...7nL4)"
@@ -160,11 +230,21 @@ const Dashboard = () => {
           {/* Results */}
           <AnimatePresence>
             {walletStats && !isAnalyzing && (
-              <motion.div
+               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-8"
               >
+                {/* Analysis Info Banner */}
+                {walletStats.analysisDateRange && (
+                  <Card className="border-primary/20 bg-primary/5 p-4">
+                    <p className="text-center text-sm text-muted-foreground">
+                      Analysis for <span className="font-semibold text-foreground">last {walletStats.analysisDateRange.daysBack} days</span>
+                      {' '}({new Date(walletStats.analysisDateRange.startDate).toLocaleDateString()} - {new Date(walletStats.analysisDateRange.endDate).toLocaleDateString()})
+                    </p>
+                  </Card>
+                )}
+                
                 {/* Header Stats */}
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                   <MetricCard
@@ -254,7 +334,7 @@ const Dashboard = () => {
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(142, 30%, 15%)" />
                           <XAxis dataKey="date" stroke="hsl(142, 76%, 90%)" fontSize={12} />
                           <YAxis stroke="hsl(142, 76%, 90%)" fontSize={12} />
-                          <Tooltip
+                          <RechartsTooltip
                             contentStyle={{
                               backgroundColor: "hsl(0, 0%, 6%)",
                               border: "1px solid hsl(142, 30%, 15%)",
@@ -295,7 +375,7 @@ const Dashboard = () => {
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
                           </Pie>
-                          <Tooltip
+                          <RechartsTooltip
                             contentStyle={{
                               backgroundColor: "hsl(0, 0%, 6%)",
                               border: "1px solid hsl(142, 30%, 15%)",
@@ -321,7 +401,7 @@ const Dashboard = () => {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(142, 30%, 15%)" />
                         <XAxis dataKey="token" stroke="hsl(142, 76%, 90%)" fontSize={12} />
                         <YAxis stroke="hsl(142, 76%, 90%)" fontSize={12} />
-                        <Tooltip
+                        <RechartsTooltip
                           contentStyle={{
                             backgroundColor: "hsl(0, 0%, 6%)",
                             border: "1px solid hsl(142, 30%, 15%)",
