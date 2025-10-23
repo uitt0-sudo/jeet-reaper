@@ -14,11 +14,15 @@ export const TokenLogo: React.FC<TokenLogoProps> = ({ mint, alt = "token logo", 
     if (!mint) return ["/placeholder.svg"]; 
     const m = encodeURIComponent(mint);
     return [
+      // Jupiter CDN
       `https://img.jup.ag/token/${m}`,
-      // Solana token list (works for many established tokens)
+      // Solana token list (community-maintained)
       `https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/${m}/logo.png`,
-      // Birdeye CDN (no key required for images)
+      // TrustWallet assets repo
+      `https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/assets/${m}/logo.png`,
+      // Birdeye CDN (resizes automatically)
       `https://img.birdeye.so/logo-go/${m}?w=${size}&h=${size}`,
+      // Final fallback
       "/placeholder.svg",
     ];
   }, [mint, size]);
@@ -32,6 +36,9 @@ export const TokenLogo: React.FC<TokenLogoProps> = ({ mint, alt = "token logo", 
       className={className}
       onError={() => setIdx((i) => Math.min(i + 1, sources.length - 1))}
       loading="lazy"
+      decoding="async"
+      crossOrigin="anonymous"
+      referrerPolicy="no-referrer"
     />
   );
 };

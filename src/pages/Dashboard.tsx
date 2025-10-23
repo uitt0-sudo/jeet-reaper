@@ -17,6 +17,7 @@ import { analyzePaperhands } from "@/services/paperhands";
 import { isValidSolanaAddress } from "@/services/solana";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
 import TokenLogo from "@/components/TokenLogo";
+import { formatNumberShort } from "@/lib/utils";
 
 const Dashboard = () => {
   const [walletAddress, setWalletAddress] = useState("");
@@ -440,7 +441,7 @@ const Dashboard = () => {
                                       <p className="text-sm text-muted-foreground">
                                         Missed since sell
                                         {marketCap && marketCap > 0 && (
-                                          <span className="ml-2">• MC: ${(marketCap / 1000000).toFixed(1)}M</span>
+                                          <span className="ml-2">• MC: ${formatNumberShort(marketCap)}</span>
                                         )}
                                       </p>
                                     </div>
@@ -553,7 +554,7 @@ const Dashboard = () => {
                                   )}
                                   <p className="text-xs text-muted-foreground">{event.tokenName}</p>
                                   {event.marketCap && event.marketCap > 0 && (
-                                    <p className="text-xs text-primary mt-1">MC: ${(event.marketCap / 1000000).toFixed(2)}M</p>
+                                    <p className="text-xs text-primary mt-1">MC: ${formatNumberShort(event.marketCap)}</p>
                                   )}
                                 </div>
                               </div>

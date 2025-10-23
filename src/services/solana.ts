@@ -514,43 +514,42 @@ export async function parseSwapsWithEnhancedAPI(
   daysBack?: number,
   onProgress?: ProgressCallback
 ): Promise<ParsedSwap[]> {
-  // Try Enhanced API first (much more accurate and complete)
-  const enhancedSwaps = await fetchAndParseTradesEnhanced(walletAddress, daysBack, onProgress);
-  
-  if (enhancedSwaps.length > 0) {
-    // Fetch metadata for all tokens
-    console.log(`Fetching metadata for ${enhancedSwaps.length} trades...`);
-    for (const swap of enhancedSwaps) {
-      const metadata = await getTokenMetadata(swap.tokenMint);
-      swap.tokenSymbol = metadata.symbol;
-      swap.tokenName = metadata.name;
-    }
-    return enhancedSwaps;
-  }
+  const timeRangeText = daysBack ? ` (last ${daysBack} days)` : '';
 
-  // Fallback to RPC parsing (less accurate, for backwards compatibility)
-  console.warn('Enhanced API returned no results, falling back to RPC parser');
-  const transactions = await fetchWalletTransactions(walletAddress, daysBack, onProgress);
-  const rpcSwaps = await parseSwapTransactions(transactions, daysBack, onProgress);
+  // Run Enhanced fetch and RPC parsing in parallel, then merge
+  const [enhancedSwaps, rpcSwaps] = await Promise.all([
+    fetchAndParseTradesEnhanced(walletAddress, daysBack, onProgress),
+    (async () => {
+      const txs = await fetchWalletTransactions(walletAddress, daysBack, onProgress);
+      return parseSwapTransactions(txs, daysBack, onProgress);
+    })()
+  ]);
 
-  // Ensure metadata is filled for RPC swaps as well
-  if (rpcSwaps.length > 0) {
-    const uniqueMints = Array.from(new Set(rpcSwaps.map(s => s.tokenMint)));
+  // Merge by signature, prefer Enhanced
+  const bySig = new Map<string, ParsedSwap>();
+  for (const s of rpcSwaps) bySig.set(s.signature, s);
+  for (const s of enhancedSwaps) bySig.set(s.signature, s);
+  const merged = Array.from(bySig.values());
+  console.log(`Trade sources merged: Enhanced=${enhancedSwaps.length}, RPC=${rpcSwaps.length}, Combined=${merged.length}${timeRangeText}`);
+
+  // Fetch metadata for all tokens concurrently
+  if (merged.length > 0) {
+    const uniqueMints = Array.from(new Set(merged.map(s => s.tokenMint)));
     const metaEntries = await Promise.all(uniqueMints.map(async (mint) => {
       const meta = await getTokenMetadata(mint);
       return [mint, meta] as const;
     }));
     const metaMap = new Map<string, { symbol: string; name: string; logo?: string }>(metaEntries);
-    for (const swap of rpcSwaps) {
+    for (const swap of merged) {
       const m = metaMap.get(swap.tokenMint);
       if (m) {
-        if (!swap.tokenSymbol) swap.tokenSymbol = m.symbol;
-        if (!swap.tokenName) swap.tokenName = m.name;
+        swap.tokenSymbol = m.symbol;
+        swap.tokenName = m.name;
       }
     }
   }
 
-  return rpcSwaps;
+  return merged;
 }
 
 /**
