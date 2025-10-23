@@ -82,7 +82,7 @@ export async function analyzePaperhands(
     const events = await calculatePaperhandsEvents(positions, onProgress);
 
     if (events.length === 0) {
-      throw new Error(`No paperhands events detected${timeRangeText}. This wallet may have held their positions well!`);
+      throw new Error(`No paperhands events over $100 detected${timeRangeText}. Either this wallet held well, or had smaller trades (< $100 regret/loss).`);
     }
 
     console.log(`Found ${events.length} paperhands events`);
@@ -188,12 +188,11 @@ async function calculatePaperhandsEvents(
       const missedSinceSell = Math.max(0, currentValue - sellValue);
       const regretPercent = buyValue > 0 ? (missedSinceSell / buyValue) * 100 : 0;
 
-      // Create event if there's any loss OR significant missed opportunity
-      // Lower threshold to 5% to catch more paperhands
-      const hasSignificantRegret = (regretPercent > 5 && missedSinceSell > 0.01);
-      const hadLoss = realizedProfit < 0;
+      // Create event if there's any loss OR significant missed opportunity above $100
+      const hasSignificantRegret = (missedSinceSell >= 100);
+      const hadSignificantLoss = (realizedProfit < 0 && Math.abs(realizedProfit) >= 100);
       
-      if (hasSignificantRegret || hadLoss) {
+      if (hasSignificantRegret || hadSignificantLoss) {
         events.push({
           id: `${position.tokenMint}-${sell.signature}`,
           tokenSymbol: position.tokenSymbol,

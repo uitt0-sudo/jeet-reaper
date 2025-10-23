@@ -306,7 +306,7 @@ async function fetchAndParseTradesEnhanced(
 
       // Prepare next page and stop when less than limit
       before = response[response.length - 1]?.signature;
-      if (response.length < 1000 || reachedCutoff) break;
+      if (response.length < 500 || reachedCutoff) break;
       
       onProgress?.(
         `Parsing trades${timeRangeText}... (${swaps.length} found)`,
