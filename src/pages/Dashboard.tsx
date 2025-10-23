@@ -106,6 +106,9 @@ const Dashboard = () => {
     percent: event.regretPercent,
   })) || [];
 
+  // Unique coins traded (by mint or symbol as fallback)
+  const coinsTraded = walletStats ? new Set(walletStats.events.map(e => e.tokenMint || e.tokenSymbol)).size : 0;
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -254,7 +257,7 @@ const Dashboard = () => {
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                   <MetricCard
                     title="Coins Traded"
-                    value={walletStats.topRegrettedTokens.length}
+                    value={coinsTraded}
                     subtitle={`${walletStats.totalEvents} total events`}
                     icon={Award}
                     trend="neutral"
@@ -421,7 +424,7 @@ const Dashboard = () => {
                                         src={`https://img.jup.ag/token/${tokenMint}`}
                                         alt={`${token.symbol} logo`}
                                         className="h-8 w-8 rounded-full border border-border object-cover"
-                                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                        onError={(e) => { const img = e.currentTarget as HTMLImageElement; if (img.src.indexOf('/placeholder.svg') === -1) img.src = '/placeholder.svg'; }}
                                       />
                                     )}
                                     <div>
@@ -432,7 +435,8 @@ const Dashboard = () => {
                                           rel="noopener noreferrer"
                                           className="text-xl font-bold hover:text-primary transition-colors hover:underline"
                                         >
-                                          {token.symbol}
+                                          {token.symbol || (tokenMint ? `${tokenMint.slice(0,4)}...${tokenMint.slice(-4)}` : 'Unknown')}
+
                                         </a>
                                       ) : (
                                         <h3 className="text-xl font-bold">{token.symbol}</h3>
@@ -465,7 +469,7 @@ const Dashboard = () => {
                                   </div>
                                 </div>
                               </div>
-                            <div className="absolute inset-0 bg-gradient-to-r from-destructive/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                            <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-destructive/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                           </div>
                         );
                       })}
@@ -550,10 +554,11 @@ const Dashboard = () => {
                                       rel="noopener noreferrer"
                                       className="text-lg font-bold hover:text-primary transition-colors hover:underline"
                                     >
-                                      {event.tokenSymbol}
+                                      {event.tokenSymbol || (event.tokenMint ? `${event.tokenMint.slice(0,4)}...${event.tokenMint.slice(-4)}` : 'Unknown')}
+
                                     </a>
                                   ) : (
-                                    <h3 className="text-lg font-bold">{event.tokenSymbol}</h3>
+                                    <h3 className="text-lg font-bold">{event.tokenSymbol || (event.tokenMint ? `${event.tokenMint.slice(0,4)}...${event.tokenMint.slice(-4)}` : 'Unknown')}</h3>
                                   )}
                                   <p className="text-xs text-muted-foreground">{event.tokenName}</p>
                                   {event.marketCap && event.marketCap > 0 && (
@@ -609,7 +614,7 @@ const Dashboard = () => {
                               </a>
                             </div>
                           </div>
-                          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                          <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-primary/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                         </div>
                       ))}
                     </div>
