@@ -46,8 +46,9 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
  */
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
-  maxRetries: number = 3,
-  baseDelay: number = 1000
+  maxRetries: number = 5,
+  baseDelay: number = 1200,
+  onProgress?: ProgressCallback
 ): Promise<T> {
   let lastError: any;
   
@@ -58,8 +59,10 @@ async function retryWithBackoff<T>(
       lastError = error;
       
       // Check if it's a rate limit error
-      if (error?.message?.includes('429') || error?.message?.includes('Too many requests')) {
+      if (error?.message?.includes('429') || error?.message?.includes('Too many requests') || error?.message?.includes('rate limit')) {
         const delay = baseDelay * Math.pow(2, i);
+        const waitSeconds = Math.floor(delay / 1000);
+        onProgress?.(`Rate limited, waiting ${waitSeconds}s...`, undefined);
         console.log(`Rate limited, retrying in ${delay}ms... (attempt ${i + 1}/${maxRetries})`);
         await sleep(delay);
         continue;
@@ -177,52 +180,44 @@ export async function parseSwapTransactions(
   onProgress?: ProgressCallback
 ): Promise<ParsedSwap[]> {
   const swaps: ParsedSwap[] = [];
-  const batchSize = 15; // Reduced to prevent rate limits
+  const total = transactions.length;
 
-  console.log(`Parsing ${transactions.length} transactions for coin trades...`);
+  console.log(`Parsing ${total} transactions for coin trades (sequential to avoid rate limits)...`);
 
-  const totalBatches = Math.ceil(transactions.length / batchSize);
-
-  for (let i = 0; i < transactions.length; i += batchSize) {
-    const batchNumber = Math.floor(i / batchSize) + 1;
-    const progressPercent = 10 + (batchNumber / totalBatches) * 70; // 10% to 80%
-    onProgress?.(`Analyzing batch ${batchNumber}/${totalBatches}...`, progressPercent);
-
-    const batch = transactions.slice(i, i + batchSize);
-    const signatures = batch.map(tx => tx.signature);
+  for (let i = 0; i < total; i++) {
+    const tx = transactions[i];
+    const progress = 10 + Math.floor(((i + 1) / total) * 80); // 10% to 90%
+    
+    onProgress?.(
+      `Analyzing transaction ${i + 1}/${total}...`,
+      progress
+    );
 
     try {
-      const txDetails = await retryWithBackoff(() => 
-        connection.getParsedTransactions(signatures, {
-          maxSupportedTransactionVersion: 0,
-        })
+      // Fetch single transaction with retry logic
+      const parsedTx = await retryWithBackoff(
+        () => connection.getParsedTransaction(tx.signature, {
+          maxSupportedTransactionVersion: 0
+        }),
+        5,
+        1200,
+        onProgress
       );
 
-      for (let j = 0; j < txDetails.length; j++) {
-        const tx = txDetails[j];
-        const originalTx = batch[j];
-
-        if (!tx || !tx.meta || tx.meta.err) continue;
-
-        try {
-          const swap = await parseTransaction(tx, originalTx);
-          if (swap) {
-            swaps.push(swap);
-          }
-        } catch (error) {
-          console.error(`Error parsing transaction ${originalTx.signature}:`, error);
+      if (parsedTx && parsedTx.meta && !parsedTx.meta.err) {
+        const swap = await parseTransaction(parsedTx, tx);
+        if (swap) {
+          swaps.push(swap);
         }
       }
-
-      // Add delay between batches to avoid rate limits
-      if (i + batchSize < transactions.length) {
-        await sleep(700); // 700ms between batches
+      
+      // Add delay between requests to avoid rate limits
+      if (i < total - 1) {
+        await sleep(120); // 120ms between transactions
       }
     } catch (error: any) {
-      console.error('Error fetching transaction batch:', error);
-      if (error?.message?.includes('429')) {
-        throw new Error('Rate limit exceeded. Please wait a moment and try again.');
-      }
+      console.error(`Error parsing transaction ${i + 1}:`, error);
+      // Continue processing remaining transactions even if one fails
     }
   }
 

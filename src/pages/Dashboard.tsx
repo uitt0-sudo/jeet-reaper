@@ -55,7 +55,9 @@ const Dashboard = () => {
       setWalletStats(stats);
       toast({ 
         title: "Analysis Complete!", 
-        description: `Found ${stats.totalEvents} paperhands events with $${stats.totalRegret.toLocaleString()} total regret. (Last 300 transactions analyzed)`,
+        description: stats.totalEvents > 0 
+          ? `Found ${stats.totalEvents} paperhands events (Last 300 transactions analyzed)`
+          : "No paperhands events detected (Last 300 transactions analyzed)",
       });
     } catch (error) {
       console.error('Analysis error:', error);

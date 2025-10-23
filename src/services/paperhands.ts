@@ -61,11 +61,11 @@ export async function analyzePaperhands(
     console.log(`Fetched ${transactions.length} transactions`);
 
     // Parse coin trades (only buys/sells)
-    onProgress?.('Parsing coin trades...', 10);
+    onProgress?.('Parsing DEX transactions...', 10);
     const swaps = await parseSwapTransactions(transactions, onProgress);
     
     if (swaps.length === 0) {
-      throw new Error('No coin trades found. This wallet may not have bought or sold tokens on supported DEXs.');
+      throw new Error('No coin buys or sells found in the last 300 transactions. Only SOL/USDC trades are analyzed.');
     }
 
     console.log(`Parsed ${swaps.length} coin trades`);
@@ -87,6 +87,7 @@ export async function analyzePaperhands(
     console.log(`Found ${events.length} paperhands events`);
 
     // Generate final stats
+    onProgress?.('Calculating regret metrics...', 90);
     onProgress?.('Generating final report...', 95);
     const stats = generateWalletStats(walletAddress, events);
 
