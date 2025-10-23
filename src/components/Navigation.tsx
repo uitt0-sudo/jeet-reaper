@@ -1,7 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Trophy, User, FileQuestion, Code, Info } from "lucide-react";
+import { Home, Trophy, FileQuestion, Code, Info } from "lucide-react";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
+import logo from "@/assets/logo.png";
 
 const NAV_ITEMS = [
   { path: "/dashboard", icon: Home, label: "Dashboard" },
@@ -15,26 +16,27 @@ export const Navigation = () => {
   const location = useLocation();
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-border bg-card/50 backdrop-blur-xl">
-      <div className="flex h-16 items-center justify-center border-b border-border">
-        <Link to="/" className="flex items-center space-x-2">
+    <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-primary/20 bg-card/50 backdrop-blur-xl">
+      <div className="flex h-20 items-center justify-center border-b border-primary/20">
+        <Link to="/" className="flex items-center space-x-3">
+          <img src={logo} alt="paperhands.cc" className="h-10 w-10" />
           <span className="shine-effect gradient-text text-2xl font-black">paperhands.cc</span>
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-2 p-4">
         {NAV_ITEMS.map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <Link key={item.path} to={item.path}>
               <Button
-                variant={isActive ? "secondary" : "ghost"}
+                variant={isActive ? "default" : "ghost"}
                 className={cn(
-                  "w-full justify-start",
-                  isActive && "bg-primary/10 text-primary hover:bg-primary/20"
+                  "w-full justify-start transition-all",
+                  isActive ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[var(--shadow-glow)]" : "hover:bg-primary/10 hover:text-primary"
                 )}
               >
-                <item.icon className="mr-3 h-4 w-4" />
+                <item.icon className="mr-3 h-5 w-5" />
                 {item.label}
               </Button>
             </Link>
@@ -42,7 +44,7 @@ export const Navigation = () => {
         })}
       </nav>
 
-      <div className="border-t border-border p-4">
+      <div className="border-t border-primary/20 p-4">
         <a
           href="https://twitter.com/bnbpaperhands"
           target="_blank"
@@ -58,14 +60,15 @@ export const Navigation = () => {
 
 export const TopBar = () => {
   return (
-    <header className="fixed left-64 right-0 top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card/50 px-6 backdrop-blur-xl">
+    <header className="fixed left-64 right-0 top-0 z-30 flex h-20 items-center justify-between border-b border-primary/20 bg-card/50 px-8 backdrop-blur-xl">
       <div className="flex items-center space-x-4">
-        <h2 className="text-lg font-semibold">Solana Paperhands Checker</h2>
+        <h2 className="text-xl font-bold text-primary">Solana Paperhands Tracker</h2>
       </div>
       
-      <Button variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
-        Connect Wallet (Mock)
-      </Button>
+      <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2">
+        <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+        <span className="text-sm font-medium text-primary">No Connection Required</span>
+      </div>
     </header>
   );
 };

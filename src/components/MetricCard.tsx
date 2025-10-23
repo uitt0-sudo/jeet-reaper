@@ -15,7 +15,7 @@ export const MetricCard = ({ title, value, subtitle, icon: Icon, trend, delay = 
   const trendColors = {
     up: "text-success",
     down: "text-destructive",
-    neutral: "text-muted-foreground",
+    neutral: "text-primary",
   };
 
   return (
@@ -23,21 +23,27 @@ export const MetricCard = ({ title, value, subtitle, icon: Icon, trend, delay = 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4 }}
+      whileHover={{ scale: 1.02, y: -5 }}
     >
-      <Card className="card-glass noise-texture relative overflow-hidden p-6 transition-all hover:shadow-[var(--shadow-glow)]">
+      <Card className="card-glass noise-texture group relative overflow-hidden p-6 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-glow)]">
         <div className="relative z-10">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
-            {Icon && <Icon className="h-5 w-5 text-primary" />}
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
+            {Icon && (
+              <div className="rounded-full bg-primary/20 p-2 transition-all group-hover:scale-110 group-hover:bg-primary/30">
+                <Icon className="h-5 w-5 text-primary" />
+              </div>
+            )}
           </div>
           
           <div className="space-y-1">
-            <p className={`text-3xl font-bold ${trend ? trendColors[trend] : "text-foreground"}`}>
+            <p className={`text-4xl font-black ${trend ? trendColors[trend] : "text-foreground"}`}>
               {value}
             </p>
             {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
           </div>
         </div>
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
       </Card>
     </motion.div>
   );

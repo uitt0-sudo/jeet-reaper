@@ -8,48 +8,53 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 6%;
-    --foreground: 45 100% 98%;
+    --background: 0 0% 4%;
+    --foreground: 142 76% 90%;
 
-    --card: 0 0% 8%;
-    --card-foreground: 45 100% 98%;
+    --card: 0 0% 6%;
+    --card-foreground: 142 76% 90%;
 
-    --popover: 0 0% 10%;
-    --popover-foreground: 45 100% 98%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 142 76% 90%;
 
-    --primary: 45 100% 51%;
-    --primary-foreground: 0 0% 6%;
+    --primary: 142 76% 60%;
+    --primary-foreground: 0 0% 4%;
 
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 45 100% 98%;
+    --secondary: 142 50% 25%;
+    --secondary-foreground: 142 76% 90%;
 
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 60%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 55%;
 
-    --accent: 270 70% 65%;
+    --accent: 142 90% 45%;
     --accent-foreground: 0 0% 98%;
 
-    --success: 140 65% 50%;
-    --success-foreground: 0 0% 98%;
+    --success: 142 76% 60%;
+    --success-foreground: 0 0% 4%;
 
     --destructive: 0 85% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 45 100% 51%;
+    --border: 142 30% 15%;
+    --input: 0 0% 12%;
+    --ring: 142 76% 60%;
 
     --radius: 1rem;
 
-    --gradient-primary: linear-gradient(135deg, hsl(45 100% 51%) 0%, hsl(35 100% 55%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(270 70% 65%) 0%, hsl(140 65% 50%) 100%);
-    --gradient-shine: linear-gradient(90deg, transparent 0%, hsla(45 100% 51% / 0.3) 50%, transparent 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(142 90% 45%) 0%, hsl(142 76% 60%) 100%);
+    --gradient-money: linear-gradient(135deg, hsl(142 90% 45%) 0%, hsl(150 85% 55%) 50%, hsl(142 76% 60%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(142 76% 60%) 0%, hsl(160 70% 50%) 100%);
+    --gradient-shine: linear-gradient(90deg, transparent 0%, hsla(142 76% 60% / 0.4) 50%, transparent 100%);
+    --gradient-mesh: radial-gradient(circle at 20% 50%, hsla(142 90% 45% / 0.15) 0%, transparent 50%),
+                     radial-gradient(circle at 80% 80%, hsla(160 70% 50% / 0.1) 0%, transparent 50%);
     
-    --shadow-glow: 0 0 40px hsla(45 100% 51% / 0.15);
-    --shadow-card: 0 8px 32px hsla(0 0% 0% / 0.4);
-    --shadow-inner: inset 0 1px 2px hsla(0 0% 100% / 0.05);
+    --shadow-glow: 0 0 60px hsla(142 76% 60% / 0.25);
+    --shadow-glow-strong: 0 0 80px hsla(142 76% 60% / 0.4);
+    --shadow-card: 0 10px 40px hsla(0 0% 0% / 0.5);
+    --shadow-inner: inset 0 1px 3px hsla(142 76% 60% / 0.1);
     
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   }
 }
 
@@ -67,11 +72,24 @@ All colors MUST be HSL.
   .card-glass {
     background: linear-gradient(
       135deg,
-      hsla(0 0% 100% / 0.05) 0%,
-      hsla(0 0% 100% / 0.02) 100%
+      hsla(142 90% 45% / 0.08) 0%,
+      hsla(0 0% 100% / 0.03) 100%
     );
-    backdrop-filter: blur(12px);
-    border: 1px solid hsla(0 0% 100% / 0.08);
+    backdrop-filter: blur(16px);
+    border: 1px solid hsla(142 76% 60% / 0.12);
+    box-shadow: var(--shadow-card), inset 0 1px 0 hsla(142 76% 60% / 0.15);
+  }
+
+  /* Money card effect */
+  .card-money {
+    background: linear-gradient(
+      135deg,
+      hsla(142 90% 45% / 0.15) 0%,
+      hsla(142 76% 60% / 0.08) 100%
+    );
+    backdrop-filter: blur(20px);
+    border: 1px solid hsla(142 76% 60% / 0.25);
+    box-shadow: var(--shadow-glow);
   }
 
   /* Noise texture */
@@ -138,33 +156,59 @@ All colors MUST be HSL.
     background: hsl(var(--primary) / 0.5);
   }
 
-  /* Hazard stripe pattern */
-  .hazard-stripe {
-    background: repeating-linear-gradient(
-      45deg,
-      hsl(0 0% 6%),
-      hsl(0 0% 6%) 20px,
-      hsl(45 100% 51%) 20px,
-      hsl(45 100% 51%) 40px
-    );
+  /* Float animation */
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-20px);
+    }
   }
 
-  /* Smooth marquee */
-  @keyframes marquee {
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  /* Pulse glow */
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 20px hsla(142 76% 60% / 0.3);
+    }
+    50% {
+      box-shadow: 0 0 60px hsla(142 76% 60% / 0.6);
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+
+  /* Money rain effect */
+  @keyframes money-rain {
     0% {
-      transform: translateX(0);
+      transform: translateY(-100%) rotate(0deg);
+      opacity: 1;
     }
     100% {
-      transform: translateX(-50%);
+      transform: translateY(100vh) rotate(360deg);
+      opacity: 0;
     }
   }
 
-  .animate-marquee {
-    animation: marquee 20s linear infinite;
+  /* Gradient shift */
+  @keyframes gradient-shift {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
   }
 
-  .animate-marquee:hover {
-    animation-play-state: paused;
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradient-shift 8s ease infinite;
   }
 }
 

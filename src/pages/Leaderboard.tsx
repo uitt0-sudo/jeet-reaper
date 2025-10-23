@@ -8,6 +8,7 @@ import { MOCK_LEADERBOARD } from "@/lib/mockData";
 import { ProfileModal } from "@/components/ProfileModal";
 import { generateMockWalletStats } from "@/lib/mockData";
 import { WalletStats } from "@/types/paperhands";
+import { cn } from "@/lib/utils";
 
 type SortField = "rank" | "totalRegret" | "regretPercent" | "totalEvents";
 
@@ -48,30 +49,30 @@ const Leaderboard = () => {
       <Navigation />
       <TopBar />
       
-      <main className="ml-64 mt-16 p-8">
+      <main className="ml-64 mt-20 p-8">
         <div className="mx-auto max-w-6xl space-y-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center justify-between"
           >
-            <h1 className="text-3xl font-bold">Paperhands Leaderboard</h1>
+            <h1 className="mb-2 text-4xl font-black text-primary">Hall of Shame</h1>
+            <p className="text-muted-foreground">The most legendary paperhandsers on Solana</p>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="card-glass noise-texture rounded-2xl p-6"
+            className="card-money noise-texture rounded-2xl p-6"
           >
-            <div className="mb-6 flex gap-3">
-              <div className="relative flex-1">
+            <div className="mb-6">
+              <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search by address or ENS..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 border-primary/30"
                 />
               </div>
             </div>
@@ -79,13 +80,13 @@ const Leaderboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-border">
+                  <tr className="border-b border-primary/20">
                     <th className="px-4 py-3 text-left">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleSort("rank")}
-                        className="h-auto p-0 font-semibold"
+                        className={cn("h-auto p-0 font-semibold", sortField === "rank" && "text-primary")}
                       >
                         Rank <ArrowUpDown className="ml-1 h-3 w-3" />
                       </Button>
@@ -96,7 +97,7 @@ const Leaderboard = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleSort("totalRegret")}
-                        className="h-auto p-0 font-semibold"
+                        className={cn("h-auto p-0 font-semibold", sortField === "totalRegret" && "text-primary")}
                       >
                         Total Regret <ArrowUpDown className="ml-1 h-3 w-3" />
                       </Button>
@@ -106,7 +107,7 @@ const Leaderboard = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleSort("regretPercent")}
-                        className="h-auto p-0 font-semibold"
+                        className={cn("h-auto p-0 font-semibold", sortField === "regretPercent" && "text-primary")}
                       >
                         Regret % <ArrowUpDown className="ml-1 h-3 w-3" />
                       </Button>
@@ -116,7 +117,7 @@ const Leaderboard = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleSort("totalEvents")}
-                        className="h-auto p-0 font-semibold"
+                        className={cn("h-auto p-0 font-semibold", sortField === "totalEvents" && "text-primary")}
                       >
                         Events <ArrowUpDown className="ml-1 h-3 w-3" />
                       </Button>
@@ -135,29 +136,22 @@ const Leaderboard = () => {
                       className="border-b border-border/50 transition-colors hover:bg-primary/5"
                     >
                       <td className="px-4 py-4">
-                        <span
-                          className={`flex h-8 w-8 items-center justify-center rounded-full font-bold ${
-                            entry.rank === 1
-                              ? "bg-primary/20 text-primary"
-                              : entry.rank === 2
-                              ? "bg-accent/20 text-accent"
-                              : entry.rank === 3
-                              ? "bg-success/20 text-success"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
+                        <span className={`flex h-10 w-10 items-center justify-center rounded-full font-bold ${
+                            entry.rank === 1 ? "bg-primary/20 text-primary" :
+                            entry.rank === 2 ? "bg-accent/20 text-accent" :
+                            entry.rank === 3 ? "bg-success/20 text-success" :
+                            "bg-muted text-muted-foreground"
+                          }`}>
                           {entry.rank}
                         </span>
                       </td>
                       <td className="px-4 py-4">
                         <div>
-                          <p className="font-medium">{entry.ensName || entry.address}</p>
-                          {entry.ensName && (
-                            <p className="text-sm text-muted-foreground">{entry.address}</p>
-                          )}
+                          <p className="font-semibold">{entry.ensName || entry.address}</p>
+                          {entry.ensName && <p className="text-sm text-muted-foreground">{entry.address}</p>}
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-right font-mono font-semibold text-destructive">
+                      <td className="px-4 py-4 text-right font-mono font-bold text-destructive">
                         ${entry.totalRegret.toLocaleString()}
                       </td>
                       <td className="px-4 py-4 text-right font-mono text-destructive">
@@ -172,9 +166,8 @@ const Leaderboard = () => {
                       <td className="px-4 py-4 text-center">
                         <Button
                           size="sm"
-                          variant="outline"
+                          className="bg-gradient-to-r from-primary to-accent font-semibold shadow-[var(--shadow-glow)] hover:scale-105"
                           onClick={() => handleAnalyze(entry.address)}
-                          className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
                         >
                           Analyze
                         </Button>

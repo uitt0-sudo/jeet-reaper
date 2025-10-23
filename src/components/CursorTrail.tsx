@@ -29,11 +29,13 @@ export const CursorTrail = () => {
     const handleMouseMove = (e: MouseEvent) => {
       mouseRef.current = { x: e.clientX, y: e.clientY };
       
-      particlesRef.current.push({
-        x: e.clientX,
-        y: e.clientY,
-        life: 1,
-      });
+      if (Math.random() > 0.7) {
+        particlesRef.current.push({
+          x: e.clientX,
+          y: e.clientY,
+          life: 1,
+        });
+      }
     };
 
     const animate = () => {
@@ -42,11 +44,14 @@ export const CursorTrail = () => {
       particlesRef.current = particlesRef.current.filter((p) => p.life > 0);
 
       particlesRef.current.forEach((particle) => {
-        particle.life -= 0.02;
+        particle.life -= 0.025;
         
         ctx.beginPath();
-        ctx.arc(particle.x, particle.y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(45, 100%, 51%, ${particle.life * 0.5})`;
+        ctx.arc(particle.x, particle.y, 4, 0, Math.PI * 2);
+        const gradient = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, 4);
+        gradient.addColorStop(0, `hsla(142, 76%, 60%, ${particle.life * 0.6})`);
+        gradient.addColorStop(1, `hsla(142, 90%, 45%, ${particle.life * 0.3})`);
+        ctx.fillStyle = gradient;
         ctx.fill();
       });
 
