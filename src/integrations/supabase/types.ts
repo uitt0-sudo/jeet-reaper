@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      token_metadata: {
+        Row: {
+          logo: string | null
+          mint: string
+          name: string
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          logo?: string | null
+          mint: string
+          name: string
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          logo?: string | null
+          mint?: string
+          name?: string
+          symbol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      token_prices: {
+        Row: {
+          ath_price: number | null
+          market_cap: number | null
+          mint: string
+          price: number
+          price_change_24h: number | null
+          updated_at: string
+        }
+        Insert: {
+          ath_price?: number | null
+          market_cap?: number | null
+          mint: string
+          price: number
+          price_change_24h?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ath_price?: number | null
+          market_cap?: number | null
+          mint?: string
+          price?: number
+          price_change_24h?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       wallet_analyses: {
         Row: {
           analysis_date_range: Json | null
@@ -21,6 +72,7 @@ export type Database = {
           avg_hold_time: number
           coins_traded: number
           created_at: string
+          expires_at: string | null
           id: string
           top_regretted_tokens: Json | null
           total_events: number
@@ -34,6 +86,7 @@ export type Database = {
           avg_hold_time?: number
           coins_traded?: number
           created_at?: string
+          expires_at?: string | null
           id?: string
           top_regretted_tokens?: Json | null
           total_events?: number
@@ -47,6 +100,7 @@ export type Database = {
           avg_hold_time?: number
           coins_traded?: number
           created_at?: string
+          expires_at?: string | null
           id?: string
           top_regretted_tokens?: Json | null
           total_events?: number
