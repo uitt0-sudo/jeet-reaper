@@ -14,7 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      wallet_analyses: {
+        Row: {
+          analysis_date_range: Json | null
+          analyzed_at: string
+          avg_hold_time: number
+          coins_traded: number
+          created_at: string
+          id: string
+          top_regretted_tokens: Json | null
+          total_events: number
+          total_regret: number
+          wallet_address: string
+          win_rate: number
+        }
+        Insert: {
+          analysis_date_range?: Json | null
+          analyzed_at?: string
+          avg_hold_time?: number
+          coins_traded?: number
+          created_at?: string
+          id?: string
+          top_regretted_tokens?: Json | null
+          total_events?: number
+          total_regret?: number
+          wallet_address: string
+          win_rate?: number
+        }
+        Update: {
+          analysis_date_range?: Json | null
+          analyzed_at?: string
+          avg_hold_time?: number
+          coins_traded?: number
+          created_at?: string
+          id?: string
+          top_regretted_tokens?: Json | null
+          total_events?: number
+          total_regret?: number
+          wallet_address?: string
+          win_rate?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,27 +1,79 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Navigation, TopBar } from "@/components/Navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, ArrowUpDown } from "lucide-react";
-import { MOCK_LEADERBOARD } from "@/lib/mockData";
-import { ProfileModal } from "@/components/ProfileModal";
-import { generateMockWalletStats } from "@/lib/mockData";
-import { WalletStats } from "@/types/paperhands";
+import { Search, ArrowUpDown, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { formatNumberShort } from "@/lib/utils";
 
-type SortField = "rank" | "totalRegret" | "regretPercent" | "totalEvents";
+type LeaderboardEntry = {
+  id: string;
+  wallet_address: string;
+  total_regret: number;
+  total_events: number;
+  coins_traded: number;
+  win_rate: number;
+  avg_hold_time: number;
+  analyzed_at: string;
+};
+
+type SortField = "total_regret" | "total_events" | "coins_traded" | "win_rate";
 
 const Leaderboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortField, setSortField] = useState<SortField>("rank");
-  const [sortAsc, setSortAsc] = useState(true);
-  const [selectedWallet, setSelectedWallet] = useState<WalletStats | null>(null);
+  const [sortField, setSortField] = useState<SortField>("total_regret");
+  const [sortAsc, setSortAsc] = useState(false);
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const filteredData = MOCK_LEADERBOARD.filter(
-    (entry) =>
-      entry.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.ensName?.toLowerCase().includes(searchTerm.toLowerCase())
+  // Fetch leaderboard data
+  useEffect(() => {
+    fetchLeaderboard();
+    
+    // Set up realtime subscription
+    const channel = supabase
+      .channel('wallet_analyses_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'wallet_analyses'
+        },
+        (payload) => {
+          console.log('New wallet analysis:', payload);
+          setLeaderboardData((current) => [payload.new as LeaderboardEntry, ...current]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const fetchLeaderboard = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('wallet_analyses')
+        .select('*')
+        .order('total_regret', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      setLeaderboardData(data || []);
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredData = leaderboardData.filter((entry) =>
+    entry.wallet_address.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const sortedData = [...filteredData].sort((a, b) => {
@@ -39,11 +91,6 @@ const Leaderboard = () => {
     }
   };
 
-  const handleAnalyze = (address: string) => {
-    const stats = generateMockWalletStats(address);
-    setSelectedWallet(stats);
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -56,7 +103,9 @@ const Leaderboard = () => {
             animate={{ opacity: 1, y: 0 }}
           >
             <h1 className="mb-2 text-4xl font-black text-primary">Hall of Shame</h1>
-            <p className="text-muted-foreground">The most legendary paperhandsers on Solana</p>
+            <p className="text-muted-foreground">
+              Real-time leaderboard of analyzed wallets • Updates automatically when new wallets are analyzed
+            </p>
           </motion.div>
 
           <motion.div
@@ -65,129 +114,139 @@ const Leaderboard = () => {
             transition={{ delay: 0.1 }}
             className="card-money noise-texture rounded-2xl p-6"
           >
-            <div className="mb-6">
-              <div className="relative">
+            <div className="mb-6 flex items-center justify-between">
+              <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Search by address or ENS..."
+                  placeholder="Search by wallet address..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 border-primary/30"
                 />
               </div>
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+                <span className="text-sm font-medium text-primary">Live</span>
+              </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-primary/20">
-                    <th className="px-4 py-3 text-left">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSort("rank")}
-                        className={cn("h-auto p-0 font-semibold", sortField === "rank" && "text-primary")}
-                      >
-                        Rank <ArrowUpDown className="ml-1 h-3 w-3" />
-                      </Button>
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold">Wallet</th>
-                    <th className="px-4 py-3 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSort("totalRegret")}
-                        className={cn("h-auto p-0 font-semibold", sortField === "totalRegret" && "text-primary")}
-                      >
-                        Total Regret <ArrowUpDown className="ml-1 h-3 w-3" />
-                      </Button>
-                    </th>
-                    <th className="px-4 py-3 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSort("regretPercent")}
-                        className={cn("h-auto p-0 font-semibold", sortField === "regretPercent" && "text-primary")}
-                      >
-                        Regret % <ArrowUpDown className="ml-1 h-3 w-3" />
-                      </Button>
-                    </th>
-                    <th className="px-4 py-3 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSort("totalEvents")}
-                        className={cn("h-auto p-0 font-semibold", sortField === "totalEvents" && "text-primary")}
-                      >
-                        Events <ArrowUpDown className="ml-1 h-3 w-3" />
-                      </Button>
-                    </th>
-                    <th className="px-4 py-3 text-right font-semibold">Score</th>
-                    <th className="px-4 py-3 text-center font-semibold">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedData.map((entry, i) => (
-                    <motion.tr
-                      key={entry.address}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="border-b border-border/50 transition-colors hover:bg-primary/5"
-                    >
-                      <td className="px-4 py-4">
-                        <span className={`flex h-10 w-10 items-center justify-center rounded-full font-bold ${
-                            entry.rank === 1 ? "bg-primary/20 text-primary" :
-                            entry.rank === 2 ? "bg-accent/20 text-accent" :
-                            entry.rank === 3 ? "bg-success/20 text-success" :
-                            "bg-muted text-muted-foreground"
-                          }`}>
-                          {entry.rank}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div>
-                          <p className="font-semibold">{entry.ensName || entry.address}</p>
-                          {entry.ensName && <p className="text-sm text-muted-foreground">{entry.address}</p>}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-right font-mono font-bold text-destructive">
-                        ${entry.totalRegret.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-4 text-right font-mono text-destructive">
-                        {entry.regretPercent}%
-                      </td>
-                      <td className="px-4 py-4 text-right font-mono">{entry.totalEvents}</td>
-                      <td className="px-4 py-4 text-right">
-                        <span className="inline-block rounded-full bg-destructive/10 px-3 py-1 font-mono font-bold text-destructive">
-                          {entry.paperhandsScore}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-center">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="mb-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                  <p className="text-muted-foreground">Loading leaderboard...</p>
+                </div>
+              </div>
+            ) : sortedData.length === 0 ? (
+              <div className="py-12 text-center">
+                <TrendingDown className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />
+                <p className="text-xl font-semibold text-foreground mb-2">No Wallets Analyzed Yet</p>
+                <p className="text-muted-foreground">Be the first to analyze a wallet on the Dashboard!</p>
+                <Button
+                  className="mt-4 bg-gradient-to-r from-primary to-accent"
+                  onClick={() => window.location.href = '/dashboard'}
+                >
+                  Analyze Now
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-primary/20">
+                      <th className="px-4 py-3 text-left font-semibold">Rank</th>
+                      <th className="px-4 py-3 text-left font-semibold">Wallet</th>
+                      <th className="px-4 py-3 text-right">
                         <Button
+                          variant="ghost"
                           size="sm"
-                          className="bg-gradient-to-r from-primary to-accent font-semibold shadow-[var(--shadow-glow)] hover:scale-105"
-                          onClick={() => handleAnalyze(entry.address)}
+                          onClick={() => handleSort("total_regret")}
+                          className={cn("h-auto p-0 font-semibold", sortField === "total_regret" && "text-primary")}
                         >
-                          Analyze
+                          Total Regret <ArrowUpDown className="ml-1 h-3 w-3" />
                         </Button>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </th>
+                      <th className="px-4 py-3 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSort("coins_traded")}
+                          className={cn("h-auto p-0 font-semibold", sortField === "coins_traded" && "text-primary")}
+                        >
+                          Coins <ArrowUpDown className="ml-1 h-3 w-3" />
+                        </Button>
+                      </th>
+                      <th className="px-4 py-3 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSort("total_events")}
+                          className={cn("h-auto p-0 font-semibold", sortField === "total_events" && "text-primary")}
+                        >
+                          Events <ArrowUpDown className="ml-1 h-3 w-3" />
+                        </Button>
+                      </th>
+                      <th className="px-4 py-3 text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSort("win_rate")}
+                          className={cn("h-auto p-0 font-semibold", sortField === "win_rate" && "text-primary")}
+                        >
+                          Win Rate <ArrowUpDown className="ml-1 h-3 w-3" />
+                        </Button>
+                      </th>
+                      <th className="px-4 py-3 text-right font-semibold">Analyzed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedData.map((entry, i) => (
+                      <motion.tr
+                        key={entry.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.02 }}
+                        className="border-b border-border/50 transition-colors hover:bg-primary/5"
+                      >
+                        <td className="px-4 py-4">
+                          <span className={`flex h-10 w-10 items-center justify-center rounded-full font-bold ${
+                              i === 0 ? "bg-primary/20 text-primary" :
+                              i === 1 ? "bg-accent/20 text-accent" :
+                              i === 2 ? "bg-success/20 text-success" :
+                              "bg-muted text-muted-foreground"
+                            }`}>
+                            {i + 1}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="font-mono">
+                            <p className="font-semibold">{entry.wallet_address.slice(0, 8)}...{entry.wallet_address.slice(-6)}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-right font-mono font-bold text-destructive">
+                          ${formatNumberShort(entry.total_regret)}
+                        </td>
+                        <td className="px-4 py-4 text-right font-mono">
+                          {entry.coins_traded}
+                        </td>
+                        <td className="px-4 py-4 text-right font-mono">{entry.total_events}</td>
+                        <td className="px-4 py-4 text-right font-mono">
+                          <span className={entry.win_rate > 50 ? "text-success" : "text-destructive"}>
+                            {entry.win_rate}%
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-right text-xs text-muted-foreground">
+                          {new Date(entry.analyzed_at).toLocaleDateString()}
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </motion.div>
         </div>
       </main>
-
-      {selectedWallet && (
-        <ProfileModal
-          open={!!selectedWallet}
-          onOpenChange={(open) => !open && setSelectedWallet(null)}
-          wallet={selectedWallet}
-        />
-      )}
     </div>
   );
 };

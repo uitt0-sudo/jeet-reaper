@@ -19,6 +19,7 @@ import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, X
 import TokenLogo from "@/components/TokenLogo";
 import { formatNumberShort } from "@/lib/utils";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
   const [walletAddress, setWalletAddress] = useState("");
@@ -71,6 +72,24 @@ const Dashboard = () => {
         setProgressPercent(percent);
       });
       setWalletStats(stats);
+      
+      // Save to database for leaderboard
+      try {
+        await supabase.from('wallet_analyses').insert({
+          wallet_address: trimmedAddress,
+          total_regret: stats.totalRegret,
+          total_events: stats.totalEvents,
+          coins_traded: stats.coinsTraded ?? 0,
+          win_rate: stats.winRate,
+          avg_hold_time: stats.avgHoldTime,
+          top_regretted_tokens: stats.topRegrettedTokens,
+          analysis_date_range: stats.analysisDateRange,
+        });
+        console.log('Saved wallet analysis to database');
+      } catch (dbError) {
+        console.error('Failed to save to database:', dbError);
+        // Don't fail the entire analysis if database save fails
+      }
       
       const timeRangeText = `last ${selectedDays} days`;
       toast({ 

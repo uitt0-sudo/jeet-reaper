@@ -99,12 +99,12 @@ const About = () => {
                 <p className="text-sm">
                   <strong>Twitter:</strong>{" "}
                   <a
-                    href="https://twitter.com/bnbpaperhands"
+                    href="https://twitter.com/paperhandscc"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary hover:underline"
                   >
-                    @bnbpaperhands
+                    @paperhandscc
                   </a>
                 </p>
                 <p className="text-sm">

@@ -3,7 +3,6 @@ import { Home, Trophy, FileQuestion, Code, Info, Gift, TrendingUp, ExternalLink,
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png";
-import { useEffect, useState } from "react";
 
 const NAV_ITEMS = [
   { path: "/dashboard", icon: Home, label: "Dashboard" },
@@ -16,23 +15,6 @@ const NAV_ITEMS = [
 
 export const Navigation = () => {
   const location = useLocation();
-  const [solPrice, setSolPrice] = useState<number | null>(null);
-
-  useEffect(() => {
-    const fetchSolPrice = async () => {
-      try {
-        // Using Jupiter price API (more reliable for crypto prices)
-        const response = await fetch('https://price.jup.ag/v4/price?ids=SOL');
-        const data = await response.json();
-        setSolPrice(data.data.SOL.price);
-      } catch (error) {
-        console.error('Failed to fetch SOL price:', error);
-      }
-    };
-    fetchSolPrice();
-    const interval = setInterval(fetchSolPrice, 30000); // Update every 30s
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-primary/20 bg-card/50 backdrop-blur-xl">
@@ -68,21 +50,18 @@ export const Navigation = () => {
         })}
       </nav>
 
-      {/* Live SOL Price */}
+      {/* Recent Activity Feed */}
       <div className="mx-4 mb-3 rounded-lg border border-primary/30 bg-gradient-to-br from-primary/10 to-accent/10 p-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
-            <span className="text-xs font-semibold text-muted-foreground">SOL Price</span>
+            <span className="text-xs font-semibold text-muted-foreground">Recent Analyses</span>
           </div>
           <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
         </div>
-        <div className="mt-2">
-          {solPrice ? (
-            <div className="text-2xl font-black gradient-text">${solPrice.toFixed(2)}</div>
-          ) : (
-            <div className="text-xl text-muted-foreground">Loading...</div>
-          )}
+        <div className="text-sm text-muted-foreground">
+          <div className="text-xl font-black gradient-text">Live</div>
+          <div className="text-xs">Check leaderboard</div>
         </div>
       </div>
 
@@ -107,46 +86,42 @@ export const Navigation = () => {
         </div>
       </div>
 
-      {/* Community */}
+      {/* Resources & Help */}
       <div className="mx-4 mb-3 rounded-lg border border-primary/20 bg-background/30 p-3">
         <div className="mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Community</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Resources</span>
         </div>
         <div className="space-y-2">
-          <a
-            href="https://discord.gg/paperhands"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2 text-xs font-medium text-foreground transition-all hover:bg-primary/10 hover:text-primary"
+          <button
+            onClick={() => window.location.href = '/how-it-works'}
+            className="w-full flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2 text-xs font-medium text-foreground transition-all hover:bg-primary/10 hover:text-primary"
           >
-            <span>🎮 Join Discord</span>
-          </a>
-          <a
-            href="https://t.me/paperhands"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2 text-xs font-medium text-foreground transition-all hover:bg-primary/10 hover:text-primary"
-          >
-            <span>✈️ Telegram Group</span>
-          </a>
+            <span>📖 How It Works</span>
+          </button>
           <button
             onClick={() => window.location.href = '/api'}
             className="w-full flex items-center justify-between rounded-lg bg-accent/10 px-3 py-2 text-xs font-medium text-accent transition-all hover:bg-accent/20"
           >
-            <span>🔌 API Access</span>
+            <span>🔌 API Docs</span>
+          </button>
+          <button
+            onClick={() => window.location.href = '/about'}
+            className="w-full flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2 text-xs font-medium text-foreground transition-all hover:bg-primary/10 hover:text-primary"
+          >
+            <span>ℹ️ About</span>
           </button>
         </div>
       </div>
 
       <div className="border-t border-primary/20 p-4">
         <a
-          href="https://twitter.com/bnbpaperhands"
+          href="https://twitter.com/paperhandscc"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-primary"
         >
           <Twitter className="h-4 w-4" />
-          @bnbpaperhands
+          @paperhandscc
         </a>
       </div>
     </aside>
