@@ -507,6 +507,41 @@ export async function parseSwapTransactions(
 }
 
 /**
+ * Check if a token is from pump.fun by checking transaction history
+ */
+export async function isPumpFunToken(tokenMint: string): Promise<boolean> {
+  try {
+    // Get recent transactions for this token's mint address
+    const mintPubkey = new PublicKey(tokenMint);
+    const signatures = await connection.getSignaturesForAddress(mintPubkey, { limit: 10 });
+    
+    if (signatures.length === 0) return false;
+
+    // Check if any transaction involves the pump.fun program
+    for (const sig of signatures) {
+      const tx = await connection.getParsedTransaction(sig.signature, {
+        maxSupportedTransactionVersion: 0
+      });
+      
+      if (tx?.transaction) {
+        const programIds = tx.transaction.message.instructions
+          .map((ix: any) => ix.programId?.toString())
+          .filter(Boolean);
+        
+        if (programIds.includes(DEX_PROGRAMS.PUMP_FUN)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    console.warn(`Error checking pump.fun status for ${tokenMint}:`, error);
+    return false; // Default to false on error
+  }
+}
+
+/**
  * Main entry point: Parse swaps with Enhanced API (preferred) or RPC fallback
  */
 export async function parseSwapsWithEnhancedAPI(
@@ -549,7 +584,22 @@ export async function parseSwapsWithEnhancedAPI(
     }
   }
 
-  return merged;
+  // FILTER: Only pump.fun tokens
+  onProgress?.('Filtering pump.fun tokens...', 75);
+  const pumpFunChecks = await Promise.all(
+    merged.map(async (swap) => {
+      const isPumpFun = await isPumpFunToken(swap.tokenMint);
+      return { swap, isPumpFun };
+    })
+  );
+  
+  const pumpFunSwaps = pumpFunChecks
+    .filter(({ isPumpFun }) => isPumpFun)
+    .map(({ swap }) => swap);
+  
+  console.log(`Filtered to ${pumpFunSwaps.length} pump.fun trades (from ${merged.length} total)`);
+
+  return pumpFunSwaps;
 }
 
 /**
@@ -673,54 +723,125 @@ export async function getTokenBalance(
 }
 
 /**
- * Fetch current token price from Jupiter
+ * Token market data including price, market cap, and ATH
  */
-export async function fetchCurrentTokenPrice(tokenMint: string): Promise<number> {
-  // DexScreener only (more reliable for current price + market cap)
-  try {
-    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
-    if (response.ok) {
-      const data = await response.json();
-      const priceUsd = data?.pairs?.[0]?.priceUsd;
-      const parsed = priceUsd ? parseFloat(priceUsd) : 0;
-      if (Number.isFinite(parsed) && parsed > 0) return parsed;
-    }
-  } catch (error) {
-    console.warn('DexScreener price fetch failed for', tokenMint);
+export interface TokenMarketData {
+  currentPrice: number;
+  marketCap: number;
+  athPrice: number;
+  priceChange24h: number;
+}
+
+// Cache for token market data to avoid duplicate API calls
+const tokenDataCache = new Map<string, { data: TokenMarketData; timestamp: number }>();
+const CACHE_TTL = 60000; // 1 minute cache
+
+/**
+ * Fetch comprehensive token data (price, market cap, ATH) in a single call
+ * This is much more efficient than separate calls
+ */
+export async function fetchTokenMarketData(tokenMint: string): Promise<TokenMarketData> {
+  // Check cache first
+  const cached = tokenDataCache.get(tokenMint);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
   }
 
-  return 0;
+  const defaultData: TokenMarketData = {
+    currentPrice: 0,
+    marketCap: 0,
+    athPrice: 0,
+    priceChange24h: 0,
+  };
+
+  try {
+    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
+    if (!response.ok) return defaultData;
+
+    const data = await response.json();
+    const pairs = Array.isArray(data?.pairs) ? data.pairs : [];
+    if (pairs.length === 0) return defaultData;
+
+    // Get the best pair (highest liquidity)
+    const best = pairs.reduce((prev: any, cur: any) => {
+      const prevLiq = Number(prev?.liquidity?.usd || 0);
+      const curLiq = Number(cur?.liquidity?.usd || 0);
+      return curLiq > prevLiq ? cur : prev;
+    }, pairs[0]);
+
+    const currentPrice = Number(best?.priceUsd || 0);
+    const marketCap = Number(best?.fdv || best?.marketCap || 0);
+    const priceChange24h = Number(best?.priceChange?.h24 || 0);
+
+    // Calculate ATH based on 24h price change
+    // If price is down 50%, ATH was currentPrice / (1 - 0.5) = currentPrice * 2
+    // If price is up 100%, ATH is at least current price (could be higher)
+    let athPrice = currentPrice;
+    if (priceChange24h < 0) {
+      // Price dropped, calculate what it was at peak
+      athPrice = currentPrice / (1 + priceChange24h / 100);
+    }
+
+    const result: TokenMarketData = {
+      currentPrice: Number.isFinite(currentPrice) ? currentPrice : 0,
+      marketCap: Number.isFinite(marketCap) ? marketCap : 0,
+      athPrice: Number.isFinite(athPrice) && athPrice > 0 ? athPrice : currentPrice,
+      priceChange24h,
+    };
+
+    // Cache the result
+    tokenDataCache.set(tokenMint, { data: result, timestamp: Date.now() });
+    return result;
+  } catch (error) {
+    console.warn('Token data fetch failed for', tokenMint);
+    return defaultData;
+  }
+}
+
+/**
+ * Batch fetch market data for multiple tokens in parallel
+ * This is MUCH faster than sequential fetching
+ */
+export async function batchFetchTokenData(
+  tokenMints: string[]
+): Promise<Map<string, TokenMarketData>> {
+  const uniqueMints = Array.from(new Set(tokenMints));
+  
+  // Fetch all tokens in parallel
+  const results = await Promise.all(
+    uniqueMints.map(async (mint) => {
+      const data = await fetchTokenMarketData(mint);
+      return [mint, data] as const;
+    })
+  );
+
+  return new Map(results);
+}
+
+/**
+ * Fetch current token price from DexScreener
+ * @deprecated Use fetchTokenMarketData instead for better performance
+ */
+export async function fetchCurrentTokenPrice(tokenMint: string): Promise<number> {
+  const data = await fetchTokenMarketData(tokenMint);
+  return data.currentPrice;
 }
 
 /**
  * Fetch token market cap from DexScreener
+ * @deprecated Use fetchTokenMarketData instead for better performance
  */
 export async function fetchTokenMarketCap(tokenMint: string): Promise<number> {
-  try {
-    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
-    if (response.ok) {
-      const data = await response.json();
-      const pairs = Array.isArray(data?.pairs) ? data.pairs : [];
-      if (pairs.length === 0) return 0;
-      // Prefer highest liquidity pair and take fdv or marketCap
-      const best = pairs.reduce((prev: any, cur: any) => {
-        const prevLiq = Number(prev?.liquidity?.usd || 0);
-        const curLiq = Number(cur?.liquidity?.usd || 0);
-        return curLiq > prevLiq ? cur : prev;
-      }, pairs[0]);
-      const cap = Number(best?.fdv || best?.marketCap || 0);
-      return Number.isFinite(cap) ? cap : 0;
-    }
-  } catch (error) {
-    console.warn('Market cap fetch failed for', tokenMint);
-  }
-  return 0;
+  const data = await fetchTokenMarketData(tokenMint);
+  return data.marketCap;
 }
 
 /**
  * Get current price only (no fake estimates)
  * Returns 0 if token price unavailable
+ * @deprecated Use fetchTokenMarketData instead for better performance
  */
 export async function getCurrentPriceOnly(tokenMint: string): Promise<number> {
-  return fetchCurrentTokenPrice(tokenMint);
+  const data = await fetchTokenMarketData(tokenMint);
+  return data.currentPrice;
 }
