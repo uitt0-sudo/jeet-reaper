@@ -161,7 +161,7 @@ const Dashboard = () => {
               <AlertTriangle className="h-5 w-5 flex-shrink-0 text-primary" />
               <div className="flex-1 text-sm">
                 <span className="font-bold text-foreground">v0.1 Beta</span>
-                <span className="text-muted-foreground"> • $100+ events only • Current prices (historical peaks coming soon)</span>
+                <span className="text-muted-foreground"> • pump.fun coins only (for now) • $100+ events only • Current prices (historical peaks coming soon)</span>
               </div>
             </div>
           </motion.div>
