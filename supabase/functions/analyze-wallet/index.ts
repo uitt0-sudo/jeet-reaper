@@ -57,7 +57,11 @@ interface PaperhandsEvent {
   explorerUrl: string;
 }
 
-const HELIUS_API_KEY = Deno.env.get('HELIUS_API_KEY') || 'bcd14c01-4a4f-4401-b3fc-3ead65b94411';
+const HELIUS_API_KEY = Deno.env.get('HELIUS_API_KEY');
+if (!HELIUS_API_KEY) {
+  console.error('[analyze-wallet] HELIUS_API_KEY not set');
+  throw new Error('HELIUS_API_KEY environment variable is not set');
+}
 const HELIUS_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`;
 
 Deno.serve(async (req) => {
@@ -377,7 +381,9 @@ async function parseSwapsWithEnhancedAPI(walletAddress: string, daysBack: number
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch transactions');
+      const errorText = await response.text();
+      console.error(`[parseSwaps] Helius RPC error: ${response.status} - ${errorText}`);
+      throw new Error(`Failed to fetch transactions: ${response.status} ${errorText}`);
     }
 
     const { result } = await response.json();
