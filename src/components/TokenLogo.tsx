@@ -58,6 +58,10 @@ export const TokenLogo: React.FC<TokenLogoProps> = ({ mint, alt = "token logo", 
         : u;
 
     return [
+      // pump.fun CDN (direct - they allow CORS)
+      `https://pump.fun/cdn-cgi/image/width=${size},height=${size},fit=cover/https://cf-ipfs.com/ipfs/${mint}`,
+      // bonk.fun CDN
+      `https://bonk.fun/api/token-image/${m}`,
       // Jupiter CDN (proxied)
       p(`https://img.jup.ag/token/${m}`),
       // Birdeye CDN (proxied)

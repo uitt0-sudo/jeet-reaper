@@ -50,6 +50,24 @@ export const Navigation = () => {
         })}
       </nav>
 
+      {/* Decorative Stats Box */}
+      <div className="mx-4 mb-4 rounded-lg border border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Platform Stats</span>
+          <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+        </div>
+        <div className="space-y-3">
+          <div>
+            <div className="text-2xl font-black gradient-text">10,000+</div>
+            <div className="text-xs text-muted-foreground">Wallets Analyzed</div>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-destructive">$50M+</div>
+            <div className="text-xs text-muted-foreground">Total Regret Tracked</div>
+          </div>
+        </div>
+      </div>
+
       <div className="border-t border-primary/20 p-4">
         <a
           href="https://twitter.com/bnbpaperhands"

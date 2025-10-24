@@ -53,6 +53,17 @@ const Dashboard = () => {
     setProgressMessage("Initializing analysis...");
     setProgressPercent(0);
 
+    // Show a helpful message after 10 seconds
+    const slowAnalysisTimer = setTimeout(() => {
+      if (isAnalyzing) {
+        toast({
+          title: "Still analyzing...",
+          description: "Checking thousands of transactions takes time. This usually completes in 15-30 seconds.",
+          duration: 5000,
+        });
+      }
+    }, 10000);
+
     try {
       const stats = await analyzePaperhands(trimmedAddress, selectedDays, (message, percent) => {
         setProgressMessage(message);
@@ -76,6 +87,7 @@ const Dashboard = () => {
         variant: "destructive" 
       });
     } finally {
+      clearTimeout(slowAnalysisTimer);
       setIsAnalyzing(false);
       setProgressMessage("");
       setProgressPercent(0);
