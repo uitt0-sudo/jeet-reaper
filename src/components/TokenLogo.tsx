@@ -51,17 +51,23 @@ export const TokenLogo: React.FC<TokenLogoProps> = ({ mint, alt = "token logo", 
     const identicon = makeIdenticonDataUrl(mint || "unknown", size);
     if (!mint) return ["/placeholder.svg", identicon];
     const m = encodeURIComponent(mint);
+    // Proxy remote images to avoid CORS/referrer issues and ensure load success
+    const p = (u: string) =>
+      u.startsWith("http")
+        ? `https://images.weserv.nl/?url=${encodeURIComponent(u.replace(/^https?:\/\//, ""))}&w=${size}&h=${size}&fit=cover&we`
+        : u;
+
     return [
-      // Jupiter CDN
-      `https://img.jup.ag/token/${m}`,
-      // Birdeye CDN (resizes automatically)
-      `https://img.birdeye.so/logo-go/${m}?w=${size}&h=${size}`,
-      // DexScreener token icons (best-effort)
-      `https://cdn.dexscreener.com/token-icons/solana/${m}.png`,
-      // Solana token list (community-maintained)
-      `https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/${m}/logo.png`,
-      // TrustWallet assets repo
-      `https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/assets/${m}/logo.png`,
+      // Jupiter CDN (proxied)
+      p(`https://img.jup.ag/token/${m}`),
+      // Birdeye CDN (proxied)
+      p(`https://img.birdeye.so/logo-go/${m}?w=${size}&h=${size}`),
+      // DexScreener token icons (proxied)
+      p(`https://cdn.dexscreener.com/token-icons/solana/${m}.png`),
+      // Solana token list (proxied)
+      p(`https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/${m}/logo.png`),
+      // TrustWallet assets repo (proxied)
+      p(`https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/assets/${m}/logo.png`),
       // Local placeholder then deterministic identicon
       "/placeholder.svg",
       identicon,

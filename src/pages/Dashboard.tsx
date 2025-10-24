@@ -371,50 +371,6 @@ const Dashboard = () => {
                   </Card>
                 </motion.div>
 
-                {/* Token Performance Table */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 1.1 }}
-                >
-                  <Card className="card-glass noise-texture p-6">
-                    <h2 className="mb-6 text-2xl font-bold">Token Performance Breakdown</h2>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-primary/20">
-                            <th className="px-4 py-3 text-left font-semibold">Token</th>
-                            <th className="px-4 py-3 text-right font-semibold">Trades</th>
-                            <th className="px-4 py-3 text-right font-semibold">Avg Entry</th>
-                            <th className="px-4 py-3 text-right font-semibold">Avg Exit</th>
-                            <th className="px-4 py-3 text-right font-semibold">Realized PnL</th>
-                            <th className="px-4 py-3 text-right font-semibold">Missed</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tokenPerfData.map((token) => (
-                            <tr key={token.symbol} className="border-b border-border/50 transition-colors hover:bg-primary/5">
-                              <td className="px-4 py-4 font-semibold">{token.symbol}</td>
-                              <td className="px-4 py-4 text-right font-mono">{token.buys}</td>
-                              <td className="px-4 py-4 text-right font-mono text-sm">
-                                ${token.avgEntry.toFixed(6)}
-                              </td>
-                              <td className="px-4 py-4 text-right font-mono text-sm">
-                                ${token.avgExit.toFixed(6)}
-                              </td>
-                              <td className={`px-4 py-4 text-right font-mono font-semibold ${token.realized >= 0 ? 'text-success' : 'text-destructive'}`}>
-                                {token.realized >= 0 ? '+' : ''}${token.realized.toLocaleString()}
-                              </td>
-                              <td className="px-4 py-4 text-right font-mono font-semibold text-muted-foreground">
-                                ${token.regret.toLocaleString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </Card>
-                </motion.div>
 
                 {/* Trade Events List - Simplified */}
                 <motion.div
