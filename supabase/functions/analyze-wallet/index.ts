@@ -421,44 +421,51 @@ async function parseSwapsWithEnhancedAPI(walletAddress: string, daysBack: number
     const swaps: Swap[] = [];
     const batchSize = 100;
 
-    for (let i = 0; i < recentSigs.length; i += batchSize) {
-      const batch = recentSigs.slice(i, i + batchSize);
-      const signatures = batch.map((sig: any) => sig.signature);
+    // Fetch transaction details individually (Helius doesn't support batch getTransaction)
+    console.log(`[parseSwaps] Fetching ${recentSigs.length} transaction details...`);
+    
+    for (let i = 0; i < recentSigs.length; i++) {
+      const signature = recentSigs[i].signature;
 
-      const txResponse = await fetch(HELIUS_RPC_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 'get-transactions',
-          method: 'getTransactions',
-          params: [signatures]
-        })
-      });
+      try {
+        const txResponse = await fetch(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: `tx-${i}`,
+            method: 'getTransaction',
+            params: [
+              signature,
+              {
+                encoding: 'jsonParsed',
+                maxSupportedTransactionVersion: 0
+              }
+            ]
+          })
+        });
 
-      if (txResponse.ok) {
-        const { result: transactions } = await txResponse.json();
-        
-        console.log(`[parseSwaps] Batch ${i / batchSize + 1}: Processing ${transactions?.length || 0} transactions`);
-        
-        for (const tx of transactions) {
-          if (!tx) continue;
-
-          const parsedSwaps = parseSwapTransaction(tx, walletAddress);
-          if (parsedSwaps.length > 0) {
-            console.log(`[parseSwaps] Found ${parsedSwaps.length} swaps in tx ${tx.transaction?.signatures?.[0]?.slice(0, 8)}`);
+        if (txResponse.ok) {
+          const { result: tx } = await txResponse.json();
+          
+          if (tx) {
+            const parsedSwaps = parseSwapTransaction(tx, walletAddress);
+            if (parsedSwaps.length > 0) {
+              swaps.push(...parsedSwaps);
+            }
           }
-          swaps.push(...parsedSwaps);
         }
-      } else {
-        console.error(`[parseSwaps] Batch fetch failed: ${txResponse.status}`);
+      } catch (error) {
+        // Silent fail for individual transactions
       }
 
-      // Rate limit
-      if (i + batchSize < recentSigs.length) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+      // Rate limit - fetch 10 per second
+      if ((i + 1) % 10 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
+    
+    console.log(`[parseSwaps] Total swaps found: ${swaps.length}`);
 
     return swaps;
 
