@@ -21,9 +21,10 @@ export const Navigation = () => {
   useEffect(() => {
     const fetchSolPrice = async () => {
       try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+        // Using Jupiter price API (more reliable for crypto prices)
+        const response = await fetch('https://price.jup.ag/v4/price?ids=SOL');
         const data = await response.json();
-        setSolPrice(data.solana.usd);
+        setSolPrice(data.data.SOL.price);
       } catch (error) {
         console.error('Failed to fetch SOL price:', error);
       }
@@ -85,56 +86,55 @@ export const Navigation = () => {
         </div>
       </div>
 
-      {/* Platform Stats */}
+      {/* Platform Stats - Match Homepage */}
       <div className="mx-4 mb-3 rounded-lg border border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 p-3">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Platform Stats</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Live Stats</span>
         </div>
         <div className="space-y-2">
           <div>
-            <div className="text-xl font-black gradient-text">10,000+</div>
+            <div className="text-xl font-black text-destructive">$2.4M+</div>
+            <div className="text-xs text-muted-foreground">Total Regret Tracked</div>
+          </div>
+          <div>
+            <div className="text-xl font-black gradient-text">1,247</div>
             <div className="text-xs text-muted-foreground">Wallets Analyzed</div>
           </div>
           <div>
-            <div className="text-xl font-black text-destructive">$50M+</div>
-            <div className="text-xs text-muted-foreground">Total Regret Tracked</div>
+            <div className="text-xl font-black text-primary">8,932</div>
+            <div className="text-xs text-muted-foreground">Paperhands Events</div>
           </div>
         </div>
       </div>
 
-      {/* Quick Links */}
+      {/* Community */}
       <div className="mx-4 mb-3 rounded-lg border border-primary/20 bg-background/30 p-3">
         <div className="mb-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quick Links</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Community</span>
         </div>
         <div className="space-y-2">
           <a
-            href="https://dexscreener.com"
+            href="https://discord.gg/paperhands"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-between text-xs text-muted-foreground transition-colors hover:text-primary"
+            className="flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2 text-xs font-medium text-foreground transition-all hover:bg-primary/10 hover:text-primary"
           >
-            <span>DexScreener</span>
-            <ExternalLink className="h-3 w-3" />
+            <span>🎮 Join Discord</span>
           </a>
           <a
-            href="https://solscan.io"
+            href="https://t.me/paperhands"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-between text-xs text-muted-foreground transition-colors hover:text-primary"
+            className="flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2 text-xs font-medium text-foreground transition-all hover:bg-primary/10 hover:text-primary"
           >
-            <span>Solscan</span>
-            <ExternalLink className="h-3 w-3" />
+            <span>✈️ Telegram Group</span>
           </a>
-          <a
-            href="https://birdeye.so"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between text-xs text-muted-foreground transition-colors hover:text-primary"
+          <button
+            onClick={() => window.location.href = '/api'}
+            className="w-full flex items-center justify-between rounded-lg bg-accent/10 px-3 py-2 text-xs font-medium text-accent transition-all hover:bg-accent/20"
           >
-            <span>Birdeye</span>
-            <ExternalLink className="h-3 w-3" />
-          </a>
+            <span>🔌 API Access</span>
+          </button>
         </div>
       </div>
 

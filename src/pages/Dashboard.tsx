@@ -131,31 +131,17 @@ const Dashboard = () => {
       
       <main className="ml-64 mt-16 p-8">
         <div className="mx-auto max-w-7xl space-y-8">
-          {/* Beta Info Banner */}
+          {/* Beta Disclaimer Banner - Slim Style */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-2xl border-2 border-primary/30 bg-gradient-to-br from-primary/10 to-accent/10 p-6"
+            className="rounded-lg border border-primary/30 bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 px-6 py-3"
           >
-            <div className="flex items-start gap-4">
-              <div className="rounded-full bg-primary/20 p-3">
-                <AlertTriangle className="h-6 w-6 text-primary" />
-              </div>
-              <div className="flex-1">
-                <h3 className="mb-2 text-xl font-bold text-foreground">
-                  🚀 Version 0.1 Beta - Early Access
-                </h3>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <p>
-                    <strong className="text-foreground">Minimum $100 Filter:</strong> Only shows paperhands events where you missed $100+ or lost $100+ to keep results meaningful.
-                  </p>
-                  <p>
-                    <strong className="text-foreground">Current Prices Only:</strong> "Missed Since Sell" uses today's prices. Historical peak tracking coming soon with Birdeye integration.
-                  </p>
-                  <p>
-                    <strong className="text-foreground">Token Coverage:</strong> Analyzing thousands of transactions per wallet. Some obscure tokens may not show logos or market cap.
-                  </p>
-                </div>
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 flex-shrink-0 text-primary" />
+              <div className="flex-1 text-sm">
+                <span className="font-bold text-foreground">v0.1 Beta</span>
+                <span className="text-muted-foreground"> • $100+ events only • Current prices (historical peaks coming soon) • Some tokens may lack logos/data</span>
               </div>
             </div>
           </motion.div>
