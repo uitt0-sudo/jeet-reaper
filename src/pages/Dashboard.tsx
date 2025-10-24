@@ -79,6 +79,7 @@ const Dashboard = () => {
         description: data.totalEvents > 0 
           ? `Found ${data.totalEvents} paperhands events (${timeRangeText})`
           : `No paperhands events detected (${timeRangeText})`,
+        duration: 10000,
       });
     } catch (error) {
       console.error('Analysis error:', error);
@@ -86,7 +87,8 @@ const Dashboard = () => {
       toast({ 
         title: "Analysis Failed", 
         description: errorMessage,
-        variant: "destructive" 
+        variant: "destructive",
+        duration: 10000,
       });
     } finally {
       setIsAnalyzing(false);
@@ -272,7 +274,7 @@ const Dashboard = () => {
                 {/* Analysis Info Banner */}
                 {walletStats.analysisDateRange && (
                   <Card className="border-primary/20 bg-primary/5 p-4">
-                    <div className="space-y-2 text-center">
+                    <div className="space-y-3 text-center">
                       <p className="text-sm text-muted-foreground">
                         Analysis for <span className="font-semibold text-foreground">last {walletStats.analysisDateRange.daysBack} days</span>
                         {' '}({new Date(walletStats.analysisDateRange.startDate).toLocaleDateString()} - {new Date(walletStats.analysisDateRange.endDate).toLocaleDateString()})
@@ -280,6 +282,10 @@ const Dashboard = () => {
                           <span className="ml-2 text-accent font-semibold">⚡ Cached</span>
                         )}
                       </p>
+                      <div className="flex items-center justify-center gap-6 text-sm">
+                        <span className="text-foreground font-semibold">Tx analyzed: {walletStats.totalEvents}</span>
+                        <span className="text-foreground font-semibold">Unique coins: {coinsTraded}</span>
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         💡 "Missed Since Sell" uses current prices only. Historical peaks coming soon with Birdeye integration.
                       </p>
