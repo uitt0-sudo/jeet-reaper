@@ -403,7 +403,10 @@ async function parseSwapsWithEnhancedAPI(walletAddress: string, daysBack: number
 
     const { result } = await response.json();
     
+    console.log(`[parseSwaps] Fetched ${result?.length || 0} total signatures`);
+    
     if (!result || result.length === 0) {
+      console.log(`[parseSwaps] No signatures found for wallet ${walletAddress}`);
       return [];
     }
 
@@ -411,6 +414,8 @@ async function parseSwapsWithEnhancedAPI(walletAddress: string, daysBack: number
     const recentSigs = result
       .filter((tx: any) => tx.blockTime && tx.blockTime >= startTime)
       .slice(0, 500);
+    
+    console.log(`[parseSwaps] ${recentSigs.length} signatures within time range (${daysBack} days)`);
 
     // Fetch transaction details in batches
     const swaps: Swap[] = [];
@@ -434,12 +439,19 @@ async function parseSwapsWithEnhancedAPI(walletAddress: string, daysBack: number
       if (txResponse.ok) {
         const { result: transactions } = await txResponse.json();
         
+        console.log(`[parseSwaps] Batch ${i / batchSize + 1}: Processing ${transactions?.length || 0} transactions`);
+        
         for (const tx of transactions) {
           if (!tx) continue;
 
           const parsedSwaps = parseSwapTransaction(tx, walletAddress);
+          if (parsedSwaps.length > 0) {
+            console.log(`[parseSwaps] Found ${parsedSwaps.length} swaps in tx ${tx.transaction?.signatures?.[0]?.slice(0, 8)}`);
+          }
           swaps.push(...parsedSwaps);
         }
+      } else {
+        console.error(`[parseSwaps] Batch fetch failed: ${txResponse.status}`);
       }
 
       // Rate limit
@@ -467,11 +479,16 @@ function parseSwapTransaction(tx: any, walletAddress: string): Swap[] {
   const solPostBalance = tx.meta.postBalances?.[0] || 0;
 
   // Filter pump.fun tokens
-  const isPumpFun = tx.transaction?.message?.accountKeys?.some((key: any) =>
-    key.toString() === '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P'
-  );
+  const accountKeys = tx.transaction?.message?.accountKeys || [];
+  const isPumpFun = accountKeys.some((key: any) => {
+    const keyStr = typeof key === 'string' ? key : key?.toString?.();
+    return keyStr === '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+  });
 
-  if (isPumpFun) return swaps;
+  if (isPumpFun) {
+    console.log(`[parseSwaps] Skipping pump.fun transaction`);
+    return swaps;
+  }
 
   // Group balances by mint
   const balanceChanges = new Map<string, { pre: number; post: number; decimals: number }>();
