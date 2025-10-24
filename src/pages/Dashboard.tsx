@@ -18,6 +18,7 @@ import { isValidSolanaAddress } from "@/services/solana";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
 import TokenLogo from "@/components/TokenLogo";
 import { formatNumberShort } from "@/lib/utils";
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const Dashboard = () => {
   const [walletAddress, setWalletAddress] = useState("");
@@ -26,6 +27,7 @@ const Dashboard = () => {
   const [walletStats, setWalletStats] = useState<WalletStats | null>(null);
   const [progressMessage, setProgressMessage] = useState("");
   const [progressPercent, setProgressPercent] = useState(0);
+  const [showSlow, setShowSlow] = useState(false);
 
   const handleAnalyze = async () => {
     const trimmedAddress = walletAddress.trim();
@@ -55,13 +57,12 @@ const Dashboard = () => {
 
     // Show a helpful message after 10 seconds
     const slowAnalysisTimer = setTimeout(() => {
-      if (isAnalyzing) {
-        toast({
-          title: "Still analyzing...",
-          description: "Checking thousands of transactions takes time. This usually completes in 15-30 seconds.",
-          duration: 5000,
-        });
-      }
+      setShowSlow(true);
+      toast({
+        title: "Still analyzing...",
+        description: "Checking thousands of transactions takes time. This usually completes in 15-30 seconds.",
+        duration: 5000,
+      });
     }, 10000);
 
     try {

@@ -58,10 +58,12 @@ export const TokenLogo: React.FC<TokenLogoProps> = ({ mint, alt = "token logo", 
         : u;
 
     return [
-      // pump.fun CDN (direct - they allow CORS)
-      `https://pump.fun/cdn-cgi/image/width=${size},height=${size},fit=cover/https://cf-ipfs.com/ipfs/${mint}`,
-      // bonk.fun CDN
+      // pump.fun CloudFront (by mint)
+      `https://d23exngyjlavgo.cloudfront.net/solana_${m}`,
+      // bonk.fun (best-effort)
       `https://bonk.fun/api/token-image/${m}`,
+      // DexScreener direct data CDN
+      p(`https://dd.dexscreener.com/ds-data/tokens/solana/${m}.png`),
       // Jupiter CDN (proxied)
       p(`https://img.jup.ag/token/${m}`),
       // Birdeye CDN (proxied)
