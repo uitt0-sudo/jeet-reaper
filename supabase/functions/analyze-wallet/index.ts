@@ -96,9 +96,24 @@ Deno.serve(async (req) => {
     console.log(`[analyze-wallet] Found ${swaps.length} swaps`);
 
     if (swaps.length === 0) {
+      // Return a friendly empty analysis instead of 404
+      const stats = generateWalletStats(walletAddress, [], daysBack);
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      await supabase.from('wallet_analyses').insert({
+        wallet_address: walletAddress,
+        total_regret: stats.totalRegret,
+        total_events: stats.totalEvents,
+        coins_traded: stats.coinsTraded,
+        win_rate: stats.winRate,
+        avg_hold_time: stats.avgHoldTime,
+        top_regretted_tokens: stats.topRegrettedTokens,
+        analysis_date_range: stats.analysisDateRange,
+        expires_at: expiresAt.toISOString(),
+      });
+
       return new Response(
-        JSON.stringify({ error: 'No swap transactions found for this wallet' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ ...stats, fromCache: false, message: 'No swap transactions found' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
