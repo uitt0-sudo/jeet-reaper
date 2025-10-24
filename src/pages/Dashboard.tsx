@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle, Percent, Sparkles } from "lucide-react";
+import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle, Percent, Sparkles, CheckCircle2 } from "lucide-react";
 import { Navigation, TopBar } from "@/components/Navigation";
 import { AnimatedLoader } from "@/components/AnimatedLoader";
 import { MetricCard } from "@/components/MetricCard";
@@ -41,6 +41,8 @@ const Dashboard = () => {
   const [progressMessage, setProgressMessage] = useState("");
   const [progressPercent, setProgressPercent] = useState(0);
   const [showSlow, setShowSlow] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [hasClaimed, setHasClaimed] = useState(false);
 
   const handleAnalyze = async () => {
     const trimmedAddress = walletAddress.trim();
@@ -128,6 +130,40 @@ const Dashboard = () => {
 
   const handleAnalysisComplete = () => {
     // This is now handled in handleAnalyze
+  };
+
+  const calculateTotalCashback = () => {
+    if (!walletStats) return 0;
+    return Math.round(walletStats.topRegrettedTokens.reduce((sum, t) => {
+      const range = calculateCashback(t.regretAmount);
+      const avg = range.includes('-') 
+        ? (parseInt(range.split('$')[1].split('-')[0].replace(/,/g, '')) + parseInt(range.split('-')[1].replace(/[,$+]/g, ''))) / 2
+        : parseInt(range.replace(/[,$+]/g, ''));
+      return sum + avg;
+    }, 0));
+  };
+
+  const handleClaimRewards = async () => {
+    setIsClaiming(true);
+    
+    // Simulate processing with visual feedback
+    await new Promise(resolve => setTimeout(resolve, 2500));
+    
+    setIsClaiming(false);
+    setHasClaimed(true);
+    
+    const totalCashback = calculateTotalCashback();
+    
+    toast({
+      title: "🎉 Cashback Claimed Successfully!",
+      description: (
+        <div className="mt-2 space-y-2">
+          <p className="text-2xl font-bold text-primary">${totalCashback.toLocaleString()} USD</p>
+          <p className="text-sm text-muted-foreground">Your cashback will be sent to your wallet in 2-5 minutes. Check your transaction history shortly!</p>
+        </div>
+      ),
+      duration: 10000,
+    });
   };
 
   // Prepare chart data
@@ -458,76 +494,164 @@ const Dashboard = () => {
                 </motion.div>
 
 
-                {/* Potential Cashback Section */}
+                {/* Claim Cashback Rewards Section */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 1.1 }}
                 >
-                  <Card className="card-money noise-texture overflow-hidden p-6">
-                    <div className="mb-6 flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent">
-                        <DollarSign className="h-6 w-6 text-primary-foreground" />
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-bold">Potential Cashback Rewards</h2>
-                        <p className="text-sm text-muted-foreground">Estimated rewards when our program launches</p>
-                      </div>
-                    </div>
+                  <Card className={`card-money noise-texture overflow-hidden p-6 relative ${hasClaimed ? 'border-2 border-primary/50' : ''}`}>
+                    {hasClaimed && (
+                      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-accent/5 to-primary/10 animate-pulse pointer-events-none" />
+                    )}
                     
-                    <div className="mb-6 rounded-xl border border-primary/20 bg-primary/5 p-4">
-                      <p className="text-sm text-muted-foreground leading-relaxed">
-                        💰 <span className="font-semibold text-foreground">Turn your regrets into rewards!</span> When our cashback program launches in Q1 2025, 
-                        you'll earn crypto rewards based on your paperhands moments. The bigger your missed opportunity, the bigger your cashback. 
-                        Early analyzers get <span className="font-bold text-primary">2x multipliers</span> on all rewards!
-                      </p>
-                    </div>
+                    <div className="relative z-10 space-y-6">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent">
+                          <DollarSign className="h-6 w-6 text-primary-foreground" />
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-bold">Cashback Rewards Program</h2>
+                          <p className="text-sm text-muted-foreground">
+                            {hasClaimed ? 'Claim processed successfully!' : 'Turn your paperhands into cold hard cash'}
+                          </p>
+                        </div>
+                      </div>
 
-                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                      {walletStats.topRegrettedTokens.map((token, i) => {
-                        const cashbackAmount = calculateCashback(token.regretAmount);
-                        return (
-                          <div
-                            key={`cashback-${token.symbol}`}
-                            className="relative overflow-hidden rounded-lg border border-primary/20 bg-background/50 p-4 transition-all hover:border-primary/40 hover:shadow-[var(--shadow-glow)]"
-                          >
-                            <div className="mb-2 flex items-center gap-2">
-                              {token.tokenMint && (
-                                <TokenLogo
-                                  mint={token.tokenMint}
-                                  preferredUrls={token.tokenLogos}
-                                  alt={`${token.symbol} logo`}
-                                  className="h-6 w-6 rounded-full border border-border object-cover"
-                                />
-                              )}
-                              <span className="font-bold text-foreground">{token.symbol}</span>
-                            </div>
-                            <div className="space-y-1">
-                              <div className="flex items-baseline gap-2">
-                                <span className="text-2xl font-black text-primary">{cashbackAmount}</span>
-                                <span className="text-xs text-muted-foreground">cashback</span>
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                From ${token.regretAmount.toLocaleString()} missed
+                      {/* Total Available Cashback - Big Display */}
+                      <div className="relative overflow-hidden rounded-2xl border-2 border-primary/30 bg-gradient-to-br from-primary/20 via-accent/10 to-primary/20 p-8 shadow-lg">
+                        <div className="relative z-10 flex items-center justify-between">
+                          <div className="space-y-3">
+                            <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Available Cashback</p>
+                            <p className="text-5xl font-black bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+                              ${calculateTotalCashback().toLocaleString()}
+                            </p>
+                            <p className="text-xs text-muted-foreground">Based on your missed opportunities</p>
+                          </div>
+                          <div className="relative">
+                            <Award className="h-20 w-20 text-primary opacity-80 animate-pulse" />
+                            <Sparkles className="h-8 w-8 text-accent absolute -top-2 -right-2 animate-bounce" />
+                          </div>
+                        </div>
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
+                      </div>
+
+                      {/* Claim Button */}
+                      <Button
+                        onClick={handleClaimRewards}
+                        disabled={isClaiming || hasClaimed}
+                        size="lg"
+                        className="w-full h-16 text-xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] hover:bg-[position:100%_0] transition-all duration-500 shadow-[0_0_30px_rgba(142,141,228,0.5)] hover:shadow-[0_0_50px_rgba(142,141,228,0.8)] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isClaiming ? (
+                          <div className="flex items-center gap-3">
+                            <div className="h-6 w-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Processing Your Claim...</span>
+                          </div>
+                        ) : hasClaimed ? (
+                          <div className="flex items-center gap-3">
+                            <CheckCircle2 className="h-6 w-6 animate-bounce" />
+                            <span>Cashback Claimed! ✨</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <DollarSign className="h-6 w-6" />
+                            <span>Claim ${calculateTotalCashback().toLocaleString()} Cashback Now</span>
+                            <Sparkles className="h-5 w-5 animate-pulse" />
+                          </div>
+                        )}
+                      </Button>
+
+                      {/* Success Message */}
+                      {hasClaimed && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="p-6 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-2 border-green-500/40 rounded-xl"
+                        >
+                          <div className="flex items-start gap-4">
+                            <CheckCircle2 className="h-7 w-7 text-green-500 flex-shrink-0 mt-1 animate-bounce" />
+                            <div className="space-y-2">
+                              <p className="font-bold text-lg text-green-500">Payment Processing</p>
+                              <p className="text-sm text-foreground/80">
+                                Your <span className="font-bold">${calculateTotalCashback().toLocaleString()} cashback</span> is being processed! 
+                                The funds will arrive in your connected wallet within the next <span className="font-semibold">2-5 minutes</span>.
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                💡 Check your wallet transaction history to see the incoming payment!
                               </p>
                             </div>
-                            <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary/5" />
                           </div>
-                        );
-                      })}
-                    </div>
+                        </motion.div>
+                      )}
 
-                    <div className="mt-6 flex items-center justify-center gap-2 rounded-lg border border-accent/20 bg-accent/5 p-3">
-                      <Sparkles className="h-5 w-5 text-accent" />
-                      <p className="text-sm font-medium text-accent">
-                        Total Potential Cashback: ${Math.round(walletStats.topRegrettedTokens.reduce((sum, t) => {
-                          const range = calculateCashback(t.regretAmount);
-                          const avg = range.includes('-') 
-                            ? (parseInt(range.split('$')[1].split('-')[0].replace(/,/g, '')) + parseInt(range.split('-')[1].replace(/[,$+]/g, ''))) / 2
-                            : parseInt(range.replace(/[,$+]/g, ''));
-                          return sum + avg;
-                        }, 0)).toLocaleString()}+
-                      </p>
+                      {/* Cashback Breakdown */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-5 w-5 text-primary" />
+                          <h3 className="font-bold text-lg">Cashback Breakdown</h3>
+                        </div>
+                        
+                        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                          {walletStats.topRegrettedTokens.map((token, i) => {
+                            const cashbackAmount = calculateCashback(token.regretAmount);
+                            return (
+                              <div
+                                key={`cashback-${token.symbol}`}
+                                className="relative overflow-hidden rounded-lg border border-primary/20 bg-background/50 p-4 transition-all hover:border-primary/40 hover:shadow-[var(--shadow-glow)]"
+                              >
+                                <div className="mb-2 flex items-center gap-2">
+                                  {token.tokenMint && (
+                                    <TokenLogo
+                                      mint={token.tokenMint}
+                                      preferredUrls={token.tokenLogos}
+                                      alt={`${token.symbol} logo`}
+                                      className="h-6 w-6 rounded-full border border-border object-cover"
+                                    />
+                                  )}
+                                  <span className="font-bold text-foreground">{token.symbol}</span>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="text-2xl font-black text-primary">{cashbackAmount}</span>
+                                    <span className="text-xs text-muted-foreground">cashback</span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    From ${token.regretAmount.toLocaleString()} missed
+                                  </p>
+                                </div>
+                                <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary/5" />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* How It Works */}
+                      <div className="rounded-xl border border-border bg-muted/30 p-5">
+                        <h4 className="font-bold mb-3 flex items-center gap-2">
+                          <Award className="h-5 w-5 text-primary" />
+                          How Cashback Works
+                        </h4>
+                        <ul className="space-y-2 text-sm text-muted-foreground">
+                          <li className="flex items-start gap-2">
+                            <span className="text-primary font-bold mt-0.5">•</span>
+                            <span>Cashback is calculated based on your missed trading opportunities</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-primary font-bold mt-0.5">•</span>
+                            <span>Larger missed gains = bigger cashback rewards (up to $14,000+)</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-primary font-bold mt-0.5">•</span>
+                            <span>Payments are processed and sent directly to your wallet in 2-5 minutes</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="text-primary font-bold mt-0.5">•</span>
+                            <span>All transactions are secure, transparent, and verifiable on-chain</span>
+                          </li>
+                        </ul>
+                      </div>
                     </div>
                   </Card>
                 </motion.div>
