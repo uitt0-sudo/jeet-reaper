@@ -157,11 +157,11 @@ const Dashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             className="rounded-lg border border-primary/30 bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 px-6 py-3"
           >
-            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
               <AlertTriangle className="h-5 w-5 flex-shrink-0 text-primary" />
               <div className="flex-1 text-sm">
                 <span className="font-bold text-foreground">v0.1 Beta</span>
-                <span className="text-muted-foreground"> • pump.fun coins only (for now) • $100+ events only • Current prices (historical peaks coming soon)</span>
+                <span className="text-muted-foreground"> • $100+ events only • Current prices (historical peaks coming soon)</span>
               </div>
             </div>
           </motion.div>
@@ -378,7 +378,21 @@ const Dashboard = () => {
                   transition={{ delay: 1.0 }}
                 >
                   <Card className="card-money noise-texture p-6">
-                    <h2 className="mb-6 text-2xl font-bold">Top Missed Opportunities</h2>
+                    <div className="mb-6 flex items-center justify-between">
+                      <h2 className="text-2xl font-bold">Top Missed Opportunities</h2>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex h-6 w-6 cursor-help items-center justify-center rounded-full border border-muted-foreground/30 text-xs text-muted-foreground transition-colors hover:border-muted-foreground/50 hover:bg-muted/20">
+                              ℹ️
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-xs">
+                            <p className="text-sm">If some token data is invalid, we're still in beta upgrading servers etc.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     <div className="space-y-4">
                       {walletStats.topRegrettedTokens.map((token, i) => {
                         const tokenMint = token.tokenMint;
