@@ -482,8 +482,18 @@ function parseSwapTransaction(tx: any, walletAddress: string): Swap[] {
 
   const preBalances = tx.meta.preTokenBalances || [];
   const postBalances = tx.meta.postTokenBalances || [];
-  const solPreBalance = tx.meta.preBalances?.[0] || 0;
-  const solPostBalance = tx.meta.postBalances?.[0] || 0;
+
+  // Determine SOL balance change for the specific wallet (not assuming index 0)
+  const messageAccountKeys = tx.transaction?.message?.accountKeys || [];
+  const accountKeyStrs: string[] = messageAccountKeys.map((key: any) =>
+    typeof key === 'string' ? key : (key?.pubkey || key?.toString?.() || '')
+  );
+  const walletIndex = accountKeyStrs.findIndex((k) => k === walletAddress);
+  const preLamports = walletIndex >= 0 ? (tx.meta.preBalances?.[walletIndex] || 0) : 0;
+  const postLamports = walletIndex >= 0 ? (tx.meta.postBalances?.[walletIndex] || 0) : 0;
+
+  const solPreBalance = preLamports;
+  const solPostBalance = postLamports;
 
   // Filter pump.fun tokens
   const accountKeys = tx.transaction?.message?.accountKeys || [];
