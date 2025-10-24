@@ -53,33 +53,50 @@ const Dashboard = () => {
 
     setIsAnalyzing(true);
     setWalletStats(null);
-    setProgressMessage("Analyzing wallet (8-15 seconds)...");
-    setProgressPercent(30);
+    setProgressMessage("Initializing analysis...");
+    setProgressPercent(0);
+
+    // Show a helpful message after 10 seconds
+    const slowAnalysisTimer = setTimeout(() => {
+      setShowSlow(true);
+      toast({
+        title: "Still analyzing...",
+        description: "Checking thousands of transactions takes time. This usually completes in 15-30 seconds.",
+        duration: 5000,
+      });
+    }, 10000);
 
     try {
-      const { data, error } = await supabase.functions.invoke('analyze-wallet', {
-        body: { 
-          walletAddress: trimmedAddress, 
-          daysBack: selectedDays 
-        }
+      const stats = await analyzePaperhands(trimmedAddress, selectedDays, (message, percent) => {
+        setProgressMessage(message);
+        setProgressPercent(percent);
       });
-
-      if (error) throw error;
-
-      setWalletStats(data);
-      setProgressPercent(100);
-
-      const cacheText = data.fromCache 
-        ? " ⚡ Cached result - instant!" 
-        : "";
+      setWalletStats(stats);
+      
+      // Save to database for leaderboard
+      try {
+        await supabase.from('wallet_analyses').insert({
+          wallet_address: trimmedAddress,
+          total_regret: stats.totalRegret,
+          total_events: stats.totalEvents,
+          coins_traded: stats.coinsTraded ?? 0,
+          win_rate: stats.winRate,
+          avg_hold_time: stats.avgHoldTime,
+          top_regretted_tokens: stats.topRegrettedTokens,
+          analysis_date_range: stats.analysisDateRange,
+        });
+        console.log('Saved wallet analysis to database');
+      } catch (dbError) {
+        console.error('Failed to save to database:', dbError);
+        // Don't fail the entire analysis if database save fails
+      }
       
       const timeRangeText = `last ${selectedDays} days`;
       toast({ 
-        title: "Analysis Complete!" + cacheText,
-        description: data.totalEvents > 0 
-          ? `Found ${data.totalEvents} paperhands events (${timeRangeText})`
+        title: "Analysis Complete!", 
+        description: stats.totalEvents > 0 
+          ? `Found ${stats.totalEvents} paperhands events (${timeRangeText})`
           : `No paperhands events detected (${timeRangeText})`,
-        duration: 10000,
       });
     } catch (error) {
       console.error('Analysis error:', error);
@@ -87,10 +104,10 @@ const Dashboard = () => {
       toast({ 
         title: "Analysis Failed", 
         description: errorMessage,
-        variant: "destructive",
-        duration: 10000,
+        variant: "destructive" 
       });
     } finally {
+      clearTimeout(slowAnalysisTimer);
       setIsAnalyzing(false);
       setProgressMessage("");
       setProgressPercent(0);
@@ -274,18 +291,11 @@ const Dashboard = () => {
                 {/* Analysis Info Banner */}
                 {walletStats.analysisDateRange && (
                   <Card className="border-primary/20 bg-primary/5 p-4">
-                    <div className="space-y-3 text-center">
+                    <div className="space-y-2 text-center">
                       <p className="text-sm text-muted-foreground">
                         Analysis for <span className="font-semibold text-foreground">last {walletStats.analysisDateRange.daysBack} days</span>
                         {' '}({new Date(walletStats.analysisDateRange.startDate).toLocaleDateString()} - {new Date(walletStats.analysisDateRange.endDate).toLocaleDateString()})
-                        {walletStats.fromCache && (
-                          <span className="ml-2 text-accent font-semibold">⚡ Cached</span>
-                        )}
                       </p>
-                      <div className="flex items-center justify-center gap-6 text-sm">
-                        <span className="text-foreground font-semibold">Tx analyzed: {walletStats.totalEvents}</span>
-                        <span className="text-foreground font-semibold">Unique coins: {coinsTraded}</span>
-                      </div>
                       <p className="text-xs text-muted-foreground">
                         💡 "Missed Since Sell" uses current prices only. Historical peaks coming soon with Birdeye integration.
                       </p>

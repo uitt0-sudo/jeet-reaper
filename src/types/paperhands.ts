@@ -58,7 +58,6 @@ export interface WalletStats {
     endDate: string;
     daysBack: number;
   };
-  fromCache?: boolean;
 }
 
 export interface LeaderboardEntry {
