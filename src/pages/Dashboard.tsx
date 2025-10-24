@@ -20,7 +20,6 @@ import TokenLogo from "@/components/TokenLogo";
 import { formatNumberShort } from "@/lib/utils";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
-import bonkLogo from "@/assets/bonk-logo.png";
 
 const Dashboard = () => {
   const [walletAddress, setWalletAddress] = useState("");
@@ -157,35 +156,11 @@ const Dashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             className="rounded-lg border border-primary/30 bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10 px-6 py-3"
           >
-              <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
               <AlertTriangle className="h-5 w-5 flex-shrink-0 text-primary" />
               <div className="flex-1 text-sm">
                 <span className="font-bold text-foreground">v0.1 Beta</span>
-                <span className="text-muted-foreground"> • pump.fun coins only (for now) • $100+ events only • Current prices (historical peaks coming soon)</span>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Bonk Integration Coming Soon Banner */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="rounded-lg border border-orange-500/30 bg-gradient-to-r from-orange-500/10 via-yellow-500/10 to-orange-500/10 px-6 py-4"
-          >
-              <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <img 
-                  src={bonkLogo}
-                  alt="Bonk"
-                  className="h-12 w-12 rounded-full"
-                />
-                <div>
-                  <div className="text-lg font-bold text-foreground">Bonk Integration Coming Soon! 🚀</div>
-                  <p className="text-sm text-muted-foreground">
-                    We're working on integrating all Raydium and Jupiter coins. Stay tuned for more DEX support!
-                  </p>
-                </div>
+                <span className="text-muted-foreground"> • $100+ events only • Current prices (historical peaks coming soon) • Some tokens may lack logos/data</span>
               </div>
             </div>
           </motion.div>
@@ -199,14 +174,9 @@ const Dashboard = () => {
           >
             <div className="relative z-10">
               <h1 className="mb-2 text-4xl font-black text-primary">Analyze Your Paperhands</h1>
-              <p className="mb-4 text-muted-foreground">
+              <p className="mb-6 text-muted-foreground">
                 Enter any Solana wallet address to analyze their coin trades. No connection required.
               </p>
-              <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2">
-                <p className="text-sm text-foreground">
-                  <span className="font-semibold">⚠️ Currently supporting pump.fun coins only.</span> More DEX platforms coming soon!
-                </p>
-              </div>
               
               {/* Time Range Selector */}
               <div className="mb-6">
@@ -378,21 +348,7 @@ const Dashboard = () => {
                   transition={{ delay: 1.0 }}
                 >
                   <Card className="card-money noise-texture p-6">
-                    <div className="mb-6 flex items-center justify-between">
-                      <h2 className="text-2xl font-bold">Top Missed Opportunities</h2>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex h-6 w-6 cursor-help items-center justify-center rounded-full border border-muted-foreground/30 text-xs text-muted-foreground transition-colors hover:border-muted-foreground/50 hover:bg-muted/20">
-                              ℹ️
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="left" className="max-w-xs">
-                            <p className="text-sm">If some token data is invalid, we're still in beta upgrading servers etc.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
+                    <h2 className="mb-6 text-2xl font-bold">Top Missed Opportunities</h2>
                     <div className="space-y-4">
                       {walletStats.topRegrettedTokens.map((token, i) => {
                         const tokenMint = token.tokenMint;
