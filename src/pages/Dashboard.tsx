@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle, Percent, Info } from "lucide-react";
+import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle, Percent, Sparkles } from "lucide-react";
 import { Navigation, TopBar } from "@/components/Navigation";
 import { AnimatedLoader } from "@/components/AnimatedLoader";
 import { MetricCard } from "@/components/MetricCard";
@@ -21,16 +21,16 @@ import { formatNumberShort } from "@/lib/utils";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 
-// Calculate cashback reward based on regret amount
+// Calculate cashback reward based on regret amount (reduced by 30%)
 const calculateCashback = (regretAmount: number): string => {
-  if (regretAmount < 100) return "$2-5";
-  if (regretAmount < 300) return "$10-30";
-  if (regretAmount < 1000) return "$50-100";
-  if (regretAmount < 5000) return "$200-500";
-  if (regretAmount < 10000) return "$750-1,500";
-  if (regretAmount < 50000) return "$2,000-5,000";
-  if (regretAmount < 100000) return "$8,000-15,000";
-  return "$20,000+";
+  if (regretAmount < 100) return "$1-3";
+  if (regretAmount < 300) return "$7-21";
+  if (regretAmount < 1000) return "$35-70";
+  if (regretAmount < 5000) return "$140-350";
+  if (regretAmount < 10000) return "$525-1,050";
+  if (regretAmount < 50000) return "$1,400-3,500";
+  if (regretAmount < 100000) return "$5,600-10,500";
+  return "$14,000+";
 };
 
 const Dashboard = () => {
@@ -372,25 +372,6 @@ const Dashboard = () => {
                             key={token.symbol}
                             className="group relative overflow-hidden rounded-xl border border-primary/20 bg-background/50 p-6 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-glow)]"
                           >
-                              {/* Rewards Info Icon - Top Right */}
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div className="absolute right-4 top-4 z-20 flex h-7 w-7 cursor-help items-center justify-center rounded-full bg-primary/20 backdrop-blur-sm transition-all hover:bg-primary/30 hover:scale-110">
-                                      <Info className="h-4 w-4 text-primary" />
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="left" className="max-w-xs">
-                                    <div className="space-y-2">
-                                      <p className="font-bold text-primary">💰 Potential Cashback Reward</p>
-                                      <p className="text-sm">Based on ${token.regretAmount.toLocaleString()} missed opportunity:</p>
-                                      <p className="text-lg font-bold text-primary">{calculateCashback(token.regretAmount)}</p>
-                                      <p className="text-xs text-muted-foreground">Rewards program coming soon!</p>
-                                    </div>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-
                               <div className="relative z-10 flex items-center justify-between">
                                 <div className="flex items-center space-x-4">
                                   <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xl font-bold">
@@ -427,25 +408,46 @@ const Dashboard = () => {
                                       </p>
                                     </div>
                                   </div>
-                                </div>
-                                <div className="text-right">
-                                  <p className="text-3xl font-black text-destructive">
-                                    ${token.regretAmount.toLocaleString()}
-                                  </p>
-                                  <div className="flex items-center justify-end gap-3">
-                                    <p className="text-sm text-muted-foreground">At current price</p>
-                                    {tokenMint && (
-                                      <a
-                                        href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${token.symbol || (tokenMint ? `${tokenMint.slice(0,4)}...${tokenMint.slice(-4)}` : 'this token')} — missed $${token.regretAmount.toFixed(0)}.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs text-accent hover:underline"
-                                      >
-                                        Share
-                                      </a>
-                                    )}
-                                  </div>
-                                </div>
+                                 </div>
+                                 <div className="text-right flex items-center gap-3">
+                                   {/* Cashback Icon with Tooltip */}
+                                   <TooltipProvider>
+                                     <Tooltip>
+                                       <TooltipTrigger asChild>
+                                         <div className="flex h-9 w-9 cursor-help items-center justify-center rounded-full bg-primary/20 backdrop-blur-sm transition-all hover:bg-primary/30 hover:scale-110">
+                                           <DollarSign className="h-5 w-5 text-primary" />
+                                         </div>
+                                       </TooltipTrigger>
+                                       <TooltipContent side="left" className="max-w-xs">
+                                         <div className="space-y-2">
+                                           <p className="font-bold text-primary">💰 Potential Cashback Reward</p>
+                                           <p className="text-sm">Based on ${token.regretAmount.toLocaleString()} missed:</p>
+                                           <p className="text-lg font-bold text-primary">{calculateCashback(token.regretAmount)}</p>
+                                           <p className="text-xs text-muted-foreground">Rewards program coming Q1 2025!</p>
+                                         </div>
+                                       </TooltipContent>
+                                     </Tooltip>
+                                   </TooltipProvider>
+                                   
+                                   <div>
+                                     <p className="text-3xl font-black text-destructive">
+                                       ${token.regretAmount.toLocaleString()}
+                                     </p>
+                                     <div className="flex items-center justify-end gap-3">
+                                       <p className="text-sm text-muted-foreground">At current price</p>
+                                       {tokenMint && (
+                                         <a
+                                           href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${token.symbol || (tokenMint ? `${tokenMint.slice(0,4)}...${tokenMint.slice(-4)}` : 'this token')} — missed $${token.regretAmount.toFixed(0)}.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
+                                           target="_blank"
+                                           rel="noopener noreferrer"
+                                           className="text-xs text-accent hover:underline"
+                                         >
+                                           Share
+                                         </a>
+                                       )}
+                                     </div>
+                                   </div>
+                                 </div>
                               </div>
                             <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-destructive/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                           </div>
@@ -456,11 +458,85 @@ const Dashboard = () => {
                 </motion.div>
 
 
+                {/* Potential Cashback Section */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1.1 }}
+                >
+                  <Card className="card-money noise-texture overflow-hidden p-6">
+                    <div className="mb-6 flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent">
+                        <DollarSign className="h-6 w-6 text-primary-foreground" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold">Potential Cashback Rewards</h2>
+                        <p className="text-sm text-muted-foreground">Estimated rewards when our program launches</p>
+                      </div>
+                    </div>
+                    
+                    <div className="mb-6 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        💰 <span className="font-semibold text-foreground">Turn your regrets into rewards!</span> When our cashback program launches in Q1 2025, 
+                        you'll earn crypto rewards based on your paperhands moments. The bigger your missed opportunity, the bigger your cashback. 
+                        Early analyzers get <span className="font-bold text-primary">2x multipliers</span> on all rewards!
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                      {walletStats.topRegrettedTokens.map((token, i) => {
+                        const cashbackAmount = calculateCashback(token.regretAmount);
+                        return (
+                          <div
+                            key={`cashback-${token.symbol}`}
+                            className="relative overflow-hidden rounded-lg border border-primary/20 bg-background/50 p-4 transition-all hover:border-primary/40 hover:shadow-[var(--shadow-glow)]"
+                          >
+                            <div className="mb-2 flex items-center gap-2">
+                              {token.tokenMint && (
+                                <TokenLogo
+                                  mint={token.tokenMint}
+                                  preferredUrls={token.tokenLogos}
+                                  alt={`${token.symbol} logo`}
+                                  className="h-6 w-6 rounded-full border border-border object-cover"
+                                />
+                              )}
+                              <span className="font-bold text-foreground">{token.symbol}</span>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-black text-primary">{cashbackAmount}</span>
+                                <span className="text-xs text-muted-foreground">cashback</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                From ${token.regretAmount.toLocaleString()} missed
+                              </p>
+                            </div>
+                            <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary/5" />
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="mt-6 flex items-center justify-center gap-2 rounded-lg border border-accent/20 bg-accent/5 p-3">
+                      <Sparkles className="h-5 w-5 text-accent" />
+                      <p className="text-sm font-medium text-accent">
+                        Total Potential Cashback: ${Math.round(walletStats.topRegrettedTokens.reduce((sum, t) => {
+                          const range = calculateCashback(t.regretAmount);
+                          const avg = range.includes('-') 
+                            ? (parseInt(range.split('$')[1].split('-')[0].replace(/,/g, '')) + parseInt(range.split('-')[1].replace(/[,$+]/g, ''))) / 2
+                            : parseInt(range.replace(/[,$+]/g, ''));
+                          return sum + avg;
+                        }, 0)).toLocaleString()}+
+                      </p>
+                    </div>
+                  </Card>
+                </motion.div>
+
                 {/* Trade Events List - Simplified */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 1.2 }}
+                  transition={{ delay: 1.3 }}
                 >
                   <Card className="card-glass noise-texture p-6">
                     <h2 className="mb-6 text-2xl font-bold">All Trade Events</h2>
