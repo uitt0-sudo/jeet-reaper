@@ -31,17 +31,26 @@ export const generateMockEvents = (address: string): PaperhandsEvent[] => {
     const buyPrice = Math.random() * 0.5; // $0 - $0.50
     const sellMultiplier = 1.2 + Math.random() * 3; // 1.2x - 4.2x gain
     const sellPrice = buyPrice * sellMultiplier;
-    const peakMultiplier = 5 + Math.random() * 45; // 5x - 50x from buy
-    const peakPrice = buyPrice * peakMultiplier;
+    const currentMultiplier = sellMultiplier + (0.5 + Math.random() * 3); // current price is higher than sell
+    const currentPrice = buyPrice * currentMultiplier;
+    const athMultiplier = currentMultiplier + (2 + Math.random() * 15); // ATH significantly higher
+    const athPrice = buyPrice * athMultiplier;
     
     const amount = Math.floor(Math.random() * 5000000) + 100000; // 100k - 5M tokens
     const realizedProfit = amount * (sellPrice - buyPrice);
-    const unrealizedProfit = amount * (peakPrice - buyPrice);
-    const regretAmount = unrealizedProfit - realizedProfit;
-    const regretPercent = ((peakPrice - sellPrice) / sellPrice) * 100;
+    const unrealizedProfit = amount * (currentPrice - buyPrice);
+    const buyCost = amount * buyPrice;
+    const sellValue = amount * sellPrice;
+    const currentValue = amount * currentPrice;
+    const athValue = amount * athPrice;
+    const regretAmount = Math.max(0, currentValue - sellValue);
+    const regretPercent = buyCost > 0 ? (regretAmount / buyCost) * 100 : 0;
+    const athRegretAmount = Math.max(0, athValue - sellValue);
+    const athRegretPercent = buyCost > 0 ? (athRegretAmount / buyCost) * 100 : 0;
     
     const buyDate = new Date(2024, Math.floor(Math.random() * 8), Math.floor(Math.random() * 28) + 1);
     const sellDate = new Date(buyDate.getTime() + (Math.random() * 60 + 7) * 24 * 60 * 60 * 1000); // 7-67 days later
+    const athDate = new Date(sellDate.getTime() + (Math.random() * 90 + 15) * 24 * 60 * 60 * 1000);
     
     events.push({
       id: `${address}-${i}`,
@@ -57,7 +66,12 @@ export const generateMockEvents = (address: string): PaperhandsEvent[] => {
       unrealizedProfit,
       regretAmount,
       regretPercent,
-      peakPrice,
+      peakPrice: currentPrice,
+      peakDate: new Date().toISOString().split('T')[0],
+      athPrice,
+      athDate: athDate.toISOString().split('T')[0],
+      athRegretAmount,
+      athRegretPercent,
       txHash: `${Math.random().toString(36).substring(2, 6)}...${Math.random().toString(36).substring(2, 6)}`,
       explorerUrl: `https://solscan.io/tx/${Math.random().toString(36).substring(2, 10)}`,
     });
@@ -104,6 +118,7 @@ export const generateMockWalletStats = (address: string): WalletStats => {
   const events = generateMockEvents(address);
   const totalRegret = events.reduce((sum, e) => sum + e.regretAmount, 0);
   const totalRealized = events.reduce((sum, e) => sum + e.realizedProfit, 0);
+  const totalRegretAtAth = events.reduce((sum, e) => sum + (e.athRegretAmount ?? 0), 0);
 
   return {
     address,
@@ -117,7 +132,10 @@ export const generateMockWalletStats = (address: string): WalletStats => {
     paperhandsScore: Math.min(Math.round((totalRegret / Math.max(totalRealized, 1)) * 10), 100),
     totalRegret,
     totalRegretPercent: Math.round((totalRegret / Math.max(totalRealized, 1)) * 100),
+    totalRegretAtAth,
+    totalRegretAtAthPercent: Math.round((totalRegretAtAth / Math.max(totalRealized, 1)) * 100),
     worstLoss: Math.max(...events.map((e) => e.regretAmount)),
+    worstLossAtAth: Math.max(...events.map((e) => e.athRegretAmount ?? 0)),
     totalExitedEarly: events.length,
     totalEvents: events.length,
     avgHoldTime: Math.floor(Math.random() * 30) + 15,
@@ -126,11 +144,12 @@ export const generateMockWalletStats = (address: string): WalletStats => {
     lossRate: Math.floor(Math.random() * 30) + 20,
     topRegrettedTokens: events
       .sort((a, b) => b.regretAmount - a.regretAmount)
-      .slice(0, 3)
+      .slice(0, 10)
       .map((e) => ({
         symbol: e.tokenSymbol,
         tokenMint: e.tokenMint || '',
         regretAmount: e.regretAmount,
+        athRegretAmount: e.athRegretAmount ?? 0,
       })),
     events,
   };
