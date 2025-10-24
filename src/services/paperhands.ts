@@ -9,7 +9,6 @@ import {
   parseSwapsWithEnhancedAPI,
   getCurrentPriceOnly,
   fetchTokenMarketCap,
-  fetchTokenAllTimeHigh,
   isValidSolanaAddress,
   ProgressCallback
 } from './solana';
@@ -198,19 +197,9 @@ async function calculatePaperhandsEvents(
     // Get current price once per token (may fail for dead/unlisted tokens)
     let currentPrice = 0;
     let marketCap = 0;
-    let athPrice = 0;
-    let athTimestamp: number | undefined;
     try {
-      const [priceResult, marketCapResult, athResult] = await Promise.all([
-        getCurrentPriceOnly(position.tokenMint),
-        fetchTokenMarketCap(position.tokenMint),
-        fetchTokenAllTimeHigh(position.tokenMint),
-      ]);
-      currentPrice = priceResult;
-      marketCap = marketCapResult;
-      console.log("athResult: ", athResult);
-      athPrice = athResult?.price ?? 0;
-      athTimestamp = athResult?.timestamp;
+      currentPrice = await getCurrentPriceOnly(position.tokenMint);
+      marketCap = await fetchTokenMarketCap(position.tokenMint);
     } catch (error) {
       console.warn(`Could not fetch data for ${position.tokenSymbol}`);
     }
@@ -269,10 +258,6 @@ async function calculatePaperhandsEvents(
       const missedSinceSell = Math.max(0, currentValue - sellValue);
       const regretPercent = buyValue > 0 ? (missedSinceSell / buyValue) * 100 : 0;
 
-      const athValue = matchedAmount * athPrice;
-      const missedAtAth = Math.max(0, athValue - sellValue);
-      const regretPercentAth = buyValue > 0 ? (missedAtAth / buyValue) * 100 : 0;
-
       const averageBuyPrice = matchedAmount > 0 ? buyValue / matchedAmount : 0;
       const sellPrice = matchedAmount > 0 ? sellValue / matchedAmount : sell.price;
       const earliestBuyTimestamp = matchedLots.reduce(
@@ -283,9 +268,8 @@ async function calculatePaperhandsEvents(
       // Create event if there's any loss OR significant missed opportunity above $100
       const hasSignificantRegret = (missedSinceSell >= 100);
       const hadSignificantLoss = (realizedProfit < 0 && Math.abs(realizedProfit) >= 100);
-      const hasAthRegret = (missedAtAth >= 100);
       
-      if (hasSignificantRegret || hadSignificantLoss || hasAthRegret) {
+      if (hasSignificantRegret || hadSignificantLoss) {
         events.push({
           id: `${position.tokenMint}-${sell.signature}`,
           tokenSymbol: position.tokenSymbol,
@@ -303,10 +287,6 @@ async function calculatePaperhandsEvents(
           regretAmount: missedSinceSell,
           regretPercent,
           peakPrice: effectiveCurrentPrice,
-          athPrice,
-          athDate: athTimestamp ? new Date(athTimestamp).toISOString().split('T')[0] : undefined,
-          athRegretAmount: missedAtAth,
-          athRegretPercent: regretPercentAth,
           peakDate: new Date().toISOString().split('T')[0],
           marketCap,
           txHash: sell.signature.slice(0, 8),
@@ -332,7 +312,7 @@ function generateWalletStats(
 ): WalletStats {
   const totalRegret = events.reduce((sum, e) => sum + e.regretAmount, 0);
   const totalRealized = events.reduce((sum, e) => sum + e.realizedProfit, 0);
-  const totalRegretAtAth = events.reduce((sum, e) => sum + (e.athRegretAmount ?? 0), 0);
+  const totalUnrealized = events.reduce((sum, e) => sum + e.unrealizedProfit, 0);
 
   // Calculate hold times
   const holdTimes = events.map(e => {
@@ -351,10 +331,6 @@ function generateWalletStats(
   // Calculate paperhands score (0-100, higher = worse paperhands)
   const regretRatio = totalRealized !== 0 ? totalRegret / Math.abs(totalRealized) : 0;
   const paperhandsScore = Math.min(Math.round(regretRatio * 10), 100);
-  const totalRegretPercent = totalRealized !== 0 ? Math.round((totalRegret / Math.abs(totalRealized)) * 100) : 0;
-  const totalRegretAtAthPercent = totalRealized !== 0 ? Math.round((totalRegretAtAth / Math.abs(totalRealized)) * 100) : 0;
-  const worstLoss = events.length > 0 ? Math.max(...events.map(e => e.regretAmount)) : 0;
-  const worstLossAtAth = events.length > 0 ? Math.max(...events.map(e => e.athRegretAmount ?? 0)) : 0;
 
   return {
     address,
@@ -365,11 +341,8 @@ function generateWalletStats(
     socials: {},
     paperhandsScore,
     totalRegret,
-    totalRegretPercent,
-    totalRegretAtAth,
-    totalRegretAtAthPercent,
-    worstLoss,
-    worstLossAtAth,
+    totalRegretPercent: totalRealized !== 0 ? Math.round((totalRegret / Math.abs(totalRealized)) * 100) : 0,
+    worstLoss: events.length > 0 ? Math.max(...events.map(e => e.regretAmount)) : 0,
     totalExitedEarly: events.length,
     totalEvents: events.length,
     avgHoldTime: Math.round(avgHoldTime),
@@ -378,12 +351,11 @@ function generateWalletStats(
     lossRate: Math.round(100 - Math.min(Math.round(winRate), 100)),
     topRegrettedTokens: (() => {
       // Aggregate regret by tokenMint (fallback to symbol)
-      const byMint = new Map<string, { regret: number; athRegret: number; symbol: string; tokenLogo?: string; tokenLogos?: string[] }>();
+      const byMint = new Map<string, { regret: number; symbol: string; tokenLogo?: string; tokenLogos?: string[] }>();
       for (const e of events) {
         const key = e.tokenMint || e.tokenSymbol;
-        const entry = byMint.get(key) || { regret: 0, athRegret: 0, symbol: e.tokenSymbol, tokenLogo: e.tokenLogo, tokenLogos: e.tokenLogos };
+        const entry = byMint.get(key) || { regret: 0, symbol: e.tokenSymbol, tokenLogo: e.tokenLogo, tokenLogos: e.tokenLogos };
         entry.regret += e.regretAmount;
-        entry.athRegret += e.athRegretAmount ?? 0;
         entry.symbol = e.tokenSymbol || entry.symbol;
         if (!entry.tokenLogo && e.tokenLogo) {
           entry.tokenLogo = e.tokenLogo;
@@ -399,12 +371,11 @@ function generateWalletStats(
       }
       return Array.from(byMint.entries())
         .sort((a, b) => b[1].regret - a[1].regret)
-        .slice(0, 10)
+        .slice(0, 3)
         .map(([mint, v]) => ({
           symbol: v.symbol,
           tokenMint: mint,
           regretAmount: v.regret,
-          athRegretAmount: v.athRegret,
           tokenLogo: v.tokenLogo,
           tokenLogos: v.tokenLogos,
         }));

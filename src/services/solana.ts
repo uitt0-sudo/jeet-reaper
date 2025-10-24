@@ -38,176 +38,6 @@ export interface ParsedSwap {
 // Initialize Solana connection
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
-type NumericLike = number | string | null | undefined;
-
-interface DexScreenerPairInfo {
-  imageUrl?: string;
-  imageUrlLg?: string;
-  imageUrlSm?: string;
-  priceHigh?: NumericLike;
-  priceHighUsd?: NumericLike;
-  priceHighTimestamp?: NumericLike;
-  priceAth?: NumericLike;
-  priceAthUsd?: NumericLike;
-  priceAthTimestamp?: NumericLike;
-  athPriceUsd?: NumericLike;
-  athPriceTimestamp?: NumericLike;
-}
-
-interface DexScreenerPair {
-  chainId?: string;
-  pairAddress?: string;
-  priceUsd?: NumericLike;
-  priceNative?: NumericLike;
-  liquidity?: {
-    usd?: NumericLike;
-  };
-  fdv?: NumericLike;
-  marketCap?: NumericLike;
-  baseToken?: {
-    symbol?: string;
-    name?: string;
-    logo?: string;
-    icon?: string;
-  };
-  info?: DexScreenerPairInfo | null;
-  athPriceUsd?: NumericLike;
-  athPriceTimestamp?: NumericLike;
-}
-
-interface DexScreenerTokenResponse {
-  pairs?: DexScreenerPair[];
-}
-
-interface DexScreenerCandle {
-  t?: NumericLike;
-  time?: NumericLike;
-  h?: NumericLike;
-  high?: NumericLike;
-}
-
-interface DexScreenerChartResponse {
-  candles?: DexScreenerCandle[];
-}
-
-interface TokenAthSnapshot {
-  price: number;
-  timestamp?: number;
-}
-
-const dexScreenerPairsCache = new Map<string, DexScreenerPair[]>();
-const dexScreenerAthCache = new Map<string, TokenAthSnapshot>();
-
-function toNumber(value: NumericLike): number {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  if (typeof value === 'string') {
-    const parsed = parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  return 0;
-}
-
-function normalizeTimestamp(value: NumericLike): number | undefined {
-  const numeric = toNumber(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return undefined;
-  return numeric > 1_000_000_000_000 ? numeric : numeric * 1000;
-}
-
-function selectBestDexScreenerPair(pairs: DexScreenerPair[]): DexScreenerPair | undefined {
-  return pairs.reduce<DexScreenerPair | undefined>((best, current) => {
-    const currentLiquidity = toNumber(current?.liquidity?.usd);
-    const bestLiquidity = toNumber(best?.liquidity?.usd);
-    if (!best || currentLiquidity > bestLiquidity) {
-      return current;
-    }
-    return best;
-  }, undefined);
-}
-
-async function fetchDexScreenerPairs(tokenMint: string): Promise<DexScreenerPair[]> {
-  if (dexScreenerPairsCache.has(tokenMint)) {
-    return dexScreenerPairsCache.get(tokenMint)!;
-  }
-
-  try {
-    const data = await retryWithBackoff(async () => {
-      const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`, {
-        method: 'GET',
-        headers: {
-          accept: 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`DexScreener token request failed (${response.status})`);
-      }
-
-      return (await response.json()) as DexScreenerTokenResponse;
-    }, {
-      maxRetries: 3,
-      baseDelay: 1000,
-    });
-
-    const pairs = Array.isArray(data?.pairs) ? data.pairs : [];
-    dexScreenerPairsCache.set(tokenMint, pairs);
-    return pairs;
-  } catch (error) {
-    console.warn(`DexScreener metadata fetch failed for ${tokenMint}:`, (error as Error)?.message ?? error);
-    return [];
-  }
-}
-
-function findNumericField(record: Record<string, unknown> | null | undefined, keys: string[]): number | undefined {
-  if (!record) return undefined;
-  for (const key of keys) {
-    if (Object.prototype.hasOwnProperty.call(record, key)) {
-      const candidate = record[key] as NumericLike;
-      const numeric = toNumber(candidate);
-      if (numeric > 0) {
-        return numeric;
-      }
-    }
-  }
-  return undefined;
-}
-
-function extractAthSnapshotFromPair(pair: DexScreenerPair | undefined): TokenAthSnapshot | undefined {
-  if (!pair) return undefined;
-
-  const rootRecord = pair as unknown as Record<string, unknown>;
-  const infoRecord = (pair.info ?? undefined) as Record<string, unknown> | undefined;
-  const candidates: TokenAthSnapshot[] = [];
-
-  const rootPrice = findNumericField(rootRecord, ['athPriceUsd', 'priceAth', 'priceAthUsd', 'allTimeHighUsd', 'allTimeHigh']);
-  if (rootPrice && rootPrice > 0) {
-    const rootTimestamp = findNumericField(rootRecord, ['athPriceTimestamp', 'priceAthTimestamp']);
-    candidates.push({
-      price: rootPrice,
-      timestamp: normalizeTimestamp(rootTimestamp),
-    });
-  }
-
-  const infoPrice = findNumericField(infoRecord, ['priceAthUsd', 'priceAth', 'athPriceUsd', 'priceHighUsd', 'priceHigh']);
-  if (infoPrice && infoPrice > 0) {
-    const infoTimestamp = findNumericField(infoRecord, ['priceAthTimestamp', 'athPriceTimestamp', 'priceHighTimestamp']);
-    candidates.push({
-      price: infoPrice,
-      timestamp: normalizeTimestamp(infoTimestamp),
-    });
-  }
-
-  if (candidates.length === 0) {
-    return undefined;
-  }
-
-  return candidates.reduce<TokenAthSnapshot | undefined>((best, snapshot) => {
-    if (!best || snapshot.price > best.price) {
-      return snapshot;
-    }
-    return best;
-  }, undefined);
-}
-
 const HELIUS_DEFAULT_PAGE_SIZE = 500;
 const HELIUS_MIN_PAGE_SIZE = 100;
 
@@ -1359,17 +1189,20 @@ export async function getTokenBalance(
  * Fetch current token price from Jupiter
  */
 export async function fetchCurrentTokenPrice(tokenMint: string): Promise<number> {
+  // DexScreener only (more reliable for current price + market cap)
   try {
-    const pairs = await fetchDexScreenerPairs(tokenMint);
-    if (pairs.length === 0) return 0;
-
-    const best = selectBestDexScreenerPair(pairs) ?? pairs[0];
-    const price = toNumber(best?.priceUsd ?? best?.priceNative);
-    return price > 0 ? price : 0;
+    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
+    if (response.ok) {
+      const data = await response.json();
+      const priceUsd = data?.pairs?.[0]?.priceUsd;
+      const parsed = priceUsd ? parseFloat(priceUsd) : 0;
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
   } catch (error) {
-    console.warn('DexScreener price fetch failed for', tokenMint, error instanceof Error ? error.message : error);
-    return 0;
+    console.warn('DexScreener price fetch failed for', tokenMint);
   }
+
+  return 0;
 }
 
 /**
@@ -1377,87 +1210,24 @@ export async function fetchCurrentTokenPrice(tokenMint: string): Promise<number>
  */
 export async function fetchTokenMarketCap(tokenMint: string): Promise<number> {
   try {
-    const pairs = await fetchDexScreenerPairs(tokenMint);
-    if (pairs.length === 0) return 0;
-
-    const best = selectBestDexScreenerPair(pairs) ?? pairs[0];
-    const fdv = toNumber(best?.fdv);
-    const marketCap = toNumber(best?.marketCap);
-    const cap = fdv > 0 ? fdv : marketCap;
-    return cap > 0 ? cap : 0;
-  } catch (error) {
-    console.warn('Market cap fetch failed for', tokenMint, error instanceof Error ? error.message : error);
-    return 0;
-  }
-}
-
-export async function fetchTokenAllTimeHigh(tokenMint: string): Promise<TokenAthSnapshot> {
-  const cached = dexScreenerAthCache.get(tokenMint);
-  if (cached && cached.price > 0) {
-    return cached;
-  }
-
-  try {
     const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    if (response.ok) {
+      const data = await response.json();
+      const pairs = Array.isArray(data?.pairs) ? data.pairs : [];
+      if (pairs.length === 0) return 0;
+      // Prefer highest liquidity pair and take fdv or marketCap
+      const best = pairs.reduce((prev: any, cur: any) => {
+        const prevLiq = Number(prev?.liquidity?.usd || 0);
+        const curLiq = Number(cur?.liquidity?.usd || 0);
+        return curLiq > prevLiq ? cur : prev;
+      }, pairs[0]);
+      const cap = Number(best?.fdv || best?.marketCap || 0);
+      return Number.isFinite(cap) ? cap : 0;
     }
-
-    const data = await response.json();
-    const pairs: any[] = Array.isArray(data?.pairs) ? data.pairs : [];
-    
-    if (pairs.length === 0) {
-      const fallback = { price: 0 };
-      dexScreenerAthCache.set(tokenMint, fallback);
-      return fallback;
-    }
-
-    // Find the pair with the highest ATH
-    let bestAth = 0;
-    let bestTimestamp: number | undefined;
-
-    for (const pair of pairs) {
-      // Try to get ATH from pair data
-      const athPrice = toNumber(pair.ath || pair.priceAth || pair.allTimeHigh);
-      const athTime = pair.athTimestamp ? normalizeTimestamp(pair.athTimestamp) : undefined;
-
-      if (athPrice > bestAth) {
-        bestAth = athPrice;
-        bestTimestamp = athTime;
-      }
-
-      // If no ATH field, use 24h high as fallback
-      if (athPrice === 0) {
-        const dayHigh = toNumber(pair.high24h || pair.priceHigh24h);
-        if (dayHigh > bestAth) {
-          bestAth = dayHigh;
-          bestTimestamp = Date.now(); // Approximate with current time
-        }
-      }
-    }
-
-    // Final fallback - use current price if nothing else works
-    if (bestAth === 0) {
-      const currentPrice = toNumber(pairs[0].priceUsd);
-      if (currentPrice > 0) {
-        bestAth = currentPrice;
-        bestTimestamp = Date.now();
-      }
-    }
-
-    if (bestAth > 0) {
-      const snapshot = { price: bestAth, timestamp: bestTimestamp };
-      dexScreenerAthCache.set(tokenMint, snapshot);
-      return snapshot;
-    }
-
   } catch (error) {
-    console.warn('ATH fetch failed for', tokenMint, error instanceof Error ? error.message : error);
+    console.warn('Market cap fetch failed for', tokenMint);
   }
-
-  const fallback = { price: 0 };
-  dexScreenerAthCache.set(tokenMint, fallback);
-  return fallback;
+  return 0;
 }
 
 /**

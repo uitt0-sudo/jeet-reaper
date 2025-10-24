@@ -23,10 +23,6 @@ export interface PaperhandsEvent {
   regretAmount: number;
   regretPercent: number;
   peakPrice: number;
-  athPrice?: number;
-  athDate?: string;
-  athRegretAmount?: number;
-  athRegretPercent?: number;
   marketCap?: number;
   txHash: string;
   explorerUrl: string;
@@ -45,13 +41,10 @@ export interface WalletStats {
   paperhandsScore: number;
   totalRegret: number;
   totalRegretPercent: number;
-  totalRegretAtAth: number;
-  totalRegretAtAthPercent: number;
   worstLoss: number;
-  worstLossAtAth: number;
   totalExitedEarly: number;
-  totalEvents: number;
-  coinsTraded?: number;
+   totalEvents: number;
+   coinsTraded?: number;
   avgHoldTime: number;
   avgShouldaHoldTime: number;
   winRate: number;
@@ -60,7 +53,6 @@ export interface WalletStats {
     symbol: string;
     tokenMint: string;
     regretAmount: number;
-    athRegretAmount?: number;
     tokenLogo?: string;
     tokenLogos?: string[];
   }>;

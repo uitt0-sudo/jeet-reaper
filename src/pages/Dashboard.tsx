@@ -160,7 +160,7 @@ const Dashboard = () => {
               <AlertTriangle className="h-5 w-5 flex-shrink-0 text-primary" />
               <div className="flex-1 text-sm">
                 <span className="font-bold text-foreground">v0.1 Beta</span>
-                <span className="text-muted-foreground"> • $100+ events only • Now compares current vs all-time-high regret • Some tokens may lack logos/data</span>
+                <span className="text-muted-foreground"> • $100+ events only • Current prices (historical peaks coming soon) • Some tokens may lack logos/data</span>
               </div>
             </div>
           </motion.div>
@@ -297,14 +297,14 @@ const Dashboard = () => {
                         {' '}({new Date(walletStats.analysisDateRange.startDate).toLocaleDateString()} - {new Date(walletStats.analysisDateRange.endDate).toLocaleDateString()})
                       </p>
                       <p className="text-xs text-muted-foreground">
-                      💡 "Missed Since Sell" tracks current prices. "Missed at ATH" estimates the same trade at the token’s recorded peak.
+                        💡 "Missed Since Sell" uses current prices only. Historical peaks coming soon with Birdeye integration.
                       </p>
                     </div>
                   </Card>
                 )}
                 
                 {/* Header Stats - Simplified and Honest */}
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                   <MetricCard
                     title="Coins Traded"
                     value={coinsTraded}
@@ -322,20 +322,12 @@ const Dashboard = () => {
                     delay={0.1}
                   />
                   <MetricCard
-                    title="Missed at ATH"
-                    value={`$${walletStats.totalRegretAtAth.toLocaleString()}`}
-                    subtitle="If price touched the recorded peak"
-                    icon={DollarSign}
-                    trend="down"
-                    delay={0.2}
-                  />
-                  <MetricCard
                     title="Win Rate"
                     value={`${walletStats.winRate}%`}
                     subtitle={`${walletStats.totalEvents} trades analyzed`}
                     icon={Target}
                     trend={walletStats.winRate > 50 ? "up" : "down"}
-                    delay={0.3}
+                    delay={0.2}
                   />
                   <MetricCard
                     title="Avg Hold Time"
@@ -343,7 +335,7 @@ const Dashboard = () => {
                     subtitle="Days to sell"
                     icon={Clock}
                     trend="neutral"
-                    delay={0.4}
+                    delay={0.3}
                   />
                 </div>
 
@@ -357,7 +349,7 @@ const Dashboard = () => {
                 >
                   <Card className="card-money noise-texture p-6">
                     <h2 className="mb-6 text-2xl font-bold">Top Missed Opportunities</h2>
-                    <div className="max-h-[420px] space-y-4 overflow-y-auto pr-2">
+                    <div className="space-y-4">
                       {walletStats.topRegrettedTokens.map((token, i) => {
                         const tokenMint = token.tokenMint;
                         const event = walletStats.events.find(e => e.tokenMint === tokenMint);
@@ -396,42 +388,24 @@ const Dashboard = () => {
                                       ) : (
                                         <h3 className="text-xl font-bold">{token.symbol}</h3>
                                       )}
-                                      <div className="text-sm text-muted-foreground space-y-1">
-                                        <p>
-                                          Missed now: ${token.regretAmount.toLocaleString()}
-                                          {typeof token.athRegretAmount === "number" ? (
-                                            <span className="ml-2 text-destructive">
-                                              ATH: ${token.athRegretAmount.toLocaleString()}
-                                            </span>
-                                          ) : null}
-                                        </p>
+                                      <p className="text-sm text-muted-foreground">
+                                        Missed since sell
                                         {marketCap && marketCap > 0 && (
-                                          <p>MC: ${formatNumberShort(marketCap)}</p>
+                                          <span className="ml-2">• MC: ${formatNumberShort(marketCap)}</span>
                                         )}
-                                      </div>
+                                      </p>
                                     </div>
                                   </div>
                                 </div>
-                                <div className="text-right space-y-2">
-                                  <div>
-                                    <p className="text-3xl font-black text-destructive">
-                                      ${token.regretAmount.toLocaleString()}
-                                    </p>
-                                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Missed Now</p>
-                                  </div>
-                                  {typeof token.athRegretAmount === "number" && token.athRegretAmount > token.regretAmount ? (
-                                    <div>
-                                      <p className="text-2xl font-bold text-destructive">
-                                        ${token.athRegretAmount.toLocaleString()}
-                                      </p>
-                                      <p className="text-xs uppercase tracking-wide text-destructive/80">Missed @ ATH</p>
-                                    </div>
-                                  ) : null}
+                                <div className="text-right">
+                                  <p className="text-3xl font-black text-destructive">
+                                    ${token.regretAmount.toLocaleString()}
+                                  </p>
                                   <div className="flex items-center justify-end gap-3">
-                                    <p className="text-sm text-muted-foreground">Share your regret</p>
+                                    <p className="text-sm text-muted-foreground">At current price</p>
                                     {tokenMint && (
                                       <a
-                                        href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${token.symbol || (tokenMint ? `${tokenMint.slice(0,4)}...${tokenMint.slice(-4)}` : 'this token')} — missed $${Math.max(token.regretAmount, token.athRegretAmount ?? token.regretAmount).toFixed(0)}.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
+                                        href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${token.symbol || (tokenMint ? `${tokenMint.slice(0,4)}...${tokenMint.slice(-4)}` : 'this token')} — missed $${token.regretAmount.toFixed(0)}.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-xs text-accent hover:underline"
@@ -495,16 +469,9 @@ const Dashboard = () => {
                                   )}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-                                  Now +{event.regretPercent.toFixed(0)}%
-                                </span>
-                                {typeof event.athRegretPercent === "number" && event.athRegretPercent > event.regretPercent ? (
-                                  <span className="rounded-full bg-destructive/10 px-3 py-1 text-xs font-bold text-destructive">
-                                    ATH +{event.athRegretPercent.toFixed(0)}%
-                                  </span>
-                                ) : null}
-                              </div>
+                              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                                +{event.regretPercent.toFixed(0)}%
+                              </span>
                             </div>
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
@@ -519,12 +486,6 @@ const Dashboard = () => {
                               <span className="text-muted-foreground">Current:</span>
                               <span className="font-mono font-medium text-primary">${event.peakPrice.toFixed(6)}</span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">All-Time High:</span>
-                              <span className="font-mono font-medium text-destructive">
-                                {event.athPrice && event.athPrice > 0 ? `$${event.athPrice.toFixed(6)}` : '—'}
-                              </span>
-                            </div>
                             <div className="flex justify-between border-t border-border pt-2">
                               <span className="text-muted-foreground">Realized PnL:</span>
                               <span className={`font-mono font-semibold ${event.realizedProfit >= 0 ? 'text-success' : 'text-destructive'}`}>
@@ -532,15 +493,9 @@ const Dashboard = () => {
                               </span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-muted-foreground">Missed Now:</span>
+                              <span className="text-muted-foreground">Missed:</span>
                               <span className="font-mono font-bold text-muted-foreground">
                                 ${event.regretAmount.toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Missed @ ATH:</span>
-                              <span className="font-mono font-bold text-destructive">
-                                ${((event.athRegretAmount ?? 0)).toFixed(2)}
                               </span>
                             </div>
                             <div className="flex items-center justify-between gap-3 pt-2">
@@ -553,7 +508,7 @@ const Dashboard = () => {
                                 View on Solscan →
                               </a>
                               <a
-                                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${event.tokenSymbol || (event.tokenMint ? `${event.tokenMint.slice(0,4)}...${event.tokenMint.slice(-4)}` : 'this token')} — missed $${event.regretAmount.toFixed(0)} now and $${Math.max(event.athRegretAmount ?? 0, event.regretAmount).toFixed(0)} at ATH.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
+                                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${event.tokenSymbol} — missed $${event.regretAmount.toFixed(0)} since selling.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-xs text-accent hover:underline"
