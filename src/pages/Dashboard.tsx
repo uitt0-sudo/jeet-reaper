@@ -367,7 +367,12 @@ const Dashboard = () => {
                                   </span>
                                   <div className="flex items-center gap-3">
                                     {tokenMint && (
-                                      <TokenLogo mint={tokenMint} alt={`${token.symbol} logo`} className="h-8 w-8 rounded-full border border-border object-cover" />
+                                      <TokenLogo
+                                        mint={tokenMint}
+                                        preferredUrls={token.tokenLogos}
+                                        alt={`${token.symbol} logo`}
+                                        className="h-8 w-8 rounded-full border border-border object-cover"
+                                      />
                                     )}
                                     <div>
                                       {tokenMint ? (
@@ -437,7 +442,12 @@ const Dashboard = () => {
                             <div className="mb-4 flex items-start justify-between">
                               <div className="flex items-center gap-3">
                                 {event.tokenMint && (
-                                  <TokenLogo mint={event.tokenMint} alt={`${event.tokenSymbol} logo`} className="h-8 w-8 rounded-full border border-border object-cover" />
+                                  <TokenLogo
+                                    mint={event.tokenMint}
+                                    preferredUrls={event.tokenLogos ?? (event.tokenLogo ? [event.tokenLogo] : undefined)}
+                                    alt={`${event.tokenSymbol} logo`}
+                                    className="h-8 w-8 rounded-full border border-border object-cover"
+                                  />
                                 )}
                                 <div>
                                   {event.tokenMint ? (

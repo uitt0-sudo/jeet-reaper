@@ -26,6 +26,8 @@ export interface ParsedSwap {
   tokenMint: string;
   tokenSymbol: string;
   tokenName: string;
+  tokenLogo?: string;
+  tokenLogos?: string[];
   type: 'buy' | 'sell';
   amountIn: number;
   amountOut: number;
@@ -36,6 +38,9 @@ export interface ParsedSwap {
 // Initialize Solana connection
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed');
 
+const HELIUS_DEFAULT_PAGE_SIZE = 500;
+const HELIUS_MIN_PAGE_SIZE = 100;
+
 /**
  * Sleep helper for rate limiting
  */
@@ -44,36 +49,195 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /**
  * Retry with exponential backoff
  */
-async function retryWithBackoff<T>(
-  fn: () => Promise<T>,
-  maxRetries: number = 5,
-  baseDelay: number = 1200,
-  onProgress?: ProgressCallback
-): Promise<T> {
-  let lastError: any;
-  
-  for (let i = 0; i < maxRetries; i++) {
+interface RetryOptions {
+  maxRetries?: number;
+  baseDelay?: number;
+  onProgress?: ProgressCallback;
+  isRetryable?: (error: unknown) => boolean;
+  onRetry?: (attempt: number, delayMs: number, error: unknown, reason: string) => void;
+}
+
+const defaultRetryable = (error: unknown) => {
+  const message = (error as Error)?.message?.toLowerCase() ?? '';
+  const status = typeof (error as any)?.status === 'number' ? (error as any).status : undefined;
+  if (status) {
+    if (status === 429) return true;
+    if (status >= 500 || status === 408) return true;
+  }
+  return (
+    message.includes('429') ||
+    message.includes('too many requests') ||
+    message.includes('rate limit') ||
+    message.includes('timed out') ||
+    message.includes('timeout') ||
+    message.includes('fetch failed') ||
+    message.includes('network error')
+  );
+};
+
+async function retryWithBackoff<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
+  const { maxRetries = 5, baseDelay = 1200, onProgress, isRetryable = defaultRetryable, onRetry } = options;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await fn();
-    } catch (error: any) {
+    } catch (error) {
       lastError = error;
-      
-      // Check if it's a rate limit error
-      if (error?.message?.includes('429') || error?.message?.includes('Too many requests') || error?.message?.includes('rate limit')) {
-        const delay = baseDelay * Math.pow(2, i);
-        const waitSeconds = Math.floor(delay / 1000);
-        onProgress?.(`Rate limited, waiting ${waitSeconds}s...`, undefined);
-        console.log(`Rate limited, retrying in ${delay}ms... (attempt ${i + 1}/${maxRetries})`);
-        await sleep(delay);
-        continue;
+      const shouldRetry = isRetryable(error);
+      if (!shouldRetry || attempt === maxRetries - 1) {
+        break;
       }
-      
-      // For other errors, throw immediately
-      throw error;
+
+      const delay = baseDelay * Math.pow(2, attempt);
+      const seconds = Math.max(1, Math.round(delay / 1000));
+      const message = (error as Error)?.message || 'unknown error';
+      const reason = message.includes('429') || (error as any)?.status === 429
+        ? 'rate limited'
+        : `transient error (${message})`;
+
+      onRetry?.(attempt + 1, delay, error, reason);
+      if (!onRetry) {
+        if (reason === 'rate limited') {
+          onProgress?.(`Rate limited, waiting ${seconds}s...`, undefined);
+        } else {
+          onProgress?.(`Retrying after ${seconds}s due to ${reason}`, undefined);
+        }
+      }
+
+      console.warn(`Retrying in ${delay}ms due to ${reason} (attempt ${attempt + 1}/${maxRetries})`);
+      await sleep(delay);
     }
   }
-  
+
   throw lastError;
+}
+
+class HeliusApiError extends Error {
+  status: number;
+  details?: unknown;
+
+  constructor(status: number, message: string, details?: unknown) {
+    super(message);
+    this.name = 'HeliusApiError';
+    this.status = status;
+    this.details = details;
+  }
+}
+
+interface HeliusPageOptions {
+  walletAddress: string;
+  apiKey: string;
+  before?: string;
+  limit: number;
+  onProgress?: ProgressCallback;
+}
+
+async function parseHeliusErrorResponse(response: Response): Promise<{ message: string; details?: unknown }> {
+  let text: string | undefined;
+  let body: unknown;
+
+  try {
+    text = await response.text();
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = text;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to read Helius error response body:', error);
+  }
+
+  let message = `Helius request failed with status ${response.status}`;
+
+  if (typeof body === 'string' && body.trim().length > 0) {
+    message = body;
+  } else if (body && typeof body === 'object') {
+    const record = body as Record<string, unknown>;
+    const candidates = [record.message, record.error, record.errorMessage];
+    const found = candidates.find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+    if (found) {
+      message = found;
+    }
+  }
+
+  return {
+    message,
+    details: body,
+  };
+}
+
+async function fetchHeliusTransactionsPage({
+  walletAddress,
+  apiKey,
+  before,
+  limit,
+  onProgress,
+}: HeliusPageOptions): Promise<any[]> {
+  const url = new URL(`${HELIUS_API_BASE}/addresses/${walletAddress}/transactions`);
+  url.searchParams.set('api-key', apiKey);
+  url.searchParams.set('limit', limit.toString());
+  if (before) {
+    url.searchParams.set('before', before);
+  }
+
+  return retryWithBackoff(
+    async () => {
+      let response: Response;
+      try {
+        response = await fetch(url.toString(), {
+          method: 'GET',
+          headers: {
+            accept: 'application/json',
+          },
+        });
+      } catch (networkError) {
+        throw new HeliusApiError(0, 'Failed to reach Helius API', networkError);
+      }
+
+      if (!response.ok) {
+        const { message, details } = await parseHeliusErrorResponse(response);
+        throw new HeliusApiError(response.status, message, details);
+      }
+
+      const data = await response.json();
+      if (!Array.isArray(data)) {
+        throw new HeliusApiError(
+          500,
+          'Helius response format unexpected (expected array of transactions)',
+          data
+        );
+      }
+
+      return data;
+    },
+    {
+      maxRetries: 4,
+      baseDelay: 1500,
+      onProgress,
+      isRetryable: (error) => {
+        if (error instanceof HeliusApiError) {
+          if (error.status === 400 || error.status === 401 || error.status === 403) return false;
+          if (error.status === 0) return true; // network failure
+          if (error.status === 429) return true;
+          if (error.status >= 500 || error.status === 408) return true;
+          return false;
+        }
+        return defaultRetryable(error);
+      },
+      onRetry: (attempt, delay, error, reason) => {
+        if (error instanceof HeliusApiError && error.status === 429) {
+          const seconds = Math.max(1, Math.round(delay / 1000));
+          onProgress?.(`Helius rate limited, retrying in ${seconds}s...`, undefined);
+        } else {
+          const seconds = Math.max(1, Math.round(delay / 1000));
+          onProgress?.(`Retrying Helius request in ${seconds}s due to ${reason}`, undefined);
+        }
+      },
+    }
+  );
 }
 
 /**
@@ -120,9 +284,11 @@ export async function fetchWalletTransactions(
           limit: batchSize,
           before 
         }),
-        5,
-        1200,
-        onProgress
+        {
+          maxRetries: 5,
+          baseDelay: 1200,
+          onProgress,
+        }
       );
       
       if (signatures.length === 0) break;
@@ -172,12 +338,13 @@ export async function fetchWalletTransactions(
 /**
  * Get token metadata from Jupiter or cache
  */
-const tokenMetadataCache = new Map<string, { symbol: string; name: string; logo?: string }>();
+const tokenMetadataCache = new Map<string, { symbol: string; name: string; logo?: string; logos?: string[] }>();
 
 export async function getTokenMetadata(tokenMint: string): Promise<{
   symbol: string;
   name: string;
   logo?: string;
+  logos?: string[];
 }> {
   // Check cache first
   if (tokenMetadataCache.has(tokenMint)) {
@@ -186,44 +353,289 @@ export async function getTokenMetadata(tokenMint: string): Promise<{
 
   // Handle known tokens
   if (tokenMint === KNOWN_TOKENS.SOL) {
-    const metadata = { symbol: 'SOL', name: 'Solana', logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png' };
+    const logo = 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png';
+    const metadata = { symbol: 'SOL', name: 'Solana', logo, logos: [logo] };
     tokenMetadataCache.set(tokenMint, metadata);
     return metadata;
   }
   if (tokenMint === KNOWN_TOKENS.USDC) {
-    const metadata = { symbol: 'USDC', name: 'USD Coin', logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png' };
+    const logo = 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png';
+    const metadata = { symbol: 'USDC', name: 'USD Coin', logo, logos: [logo] };
     tokenMetadataCache.set(tokenMint, metadata);
     return metadata;
   }
 
+  // Try Helius first, then fallbacks
+  const metadata = await getTokenMetadataWithHelius(tokenMint);
+  tokenMetadataCache.set(tokenMint, metadata);
+  return metadata;
+}
+
+async function getTokenMetadataWithHelius(tokenMint: string): Promise<{
+  symbol: string;
+  name: string;
+  logo?: string;
+  logos?: string[];
+}> {
+  const sources = [
+    getHeliusMetadata(tokenMint), // Primary source
+    getJupiterStrictMetadata(tokenMint), // Fallback 1
+    getBirdeyeMetadata(tokenMint), // Fallback 2
+    getSolanaTokenListMetadata(tokenMint), // Fallback 3
+  ];
+
   try {
-    // Prefer DexScreener for base token info (CORS-friendly and reliable)
-    const r2 = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenMint}`);
-    if (r2.ok) {
-      const d2 = await r2.json();
-      const base = d2?.pairs?.[0]?.baseToken;
-      if (base) {
-        const metadata = {
-          symbol: base.symbol || tokenMint.slice(0, 6),
-          name: base.name || 'Unknown Token',
-          logo: `https://img.jup.ag/token/${tokenMint}`,
-        };
-        tokenMetadataCache.set(tokenMint, metadata);
-        return metadata;
+    // Try Helius first with short timeout
+    const heliusResult = await Promise.race([
+      getHeliusMetadata(tokenMint),
+      new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Helius timeout')), 2000)
+      )
+    ]);
+    
+    // If Helius has good data with logo, return immediately
+    if (heliusResult.logo || heliusResult.logos?.length) {
+      return heliusResult;
+    }
+
+    // If Helius has data but no logo, try other sources for logos only
+    console.log(`Helius found metadata for ${tokenMint} but no logo, checking other sources...`);
+    const fallbackSources = sources.slice(1);
+    const fallbackResults = await Promise.allSettled(fallbackSources);
+    
+    const logos = collectLogosFromResults([{ status: 'fulfilled', value: heliusResult }, ...fallbackResults]);
+    
+    return {
+      symbol: heliusResult.symbol,
+      name: heliusResult.name,
+      logo: logos[0],
+      logos: logos.length > 0 ? logos : undefined,
+    };
+
+  } catch (error) {
+    // Helius failed or timed out, try all sources in parallel
+    console.log(`Helius primary failed for ${tokenMint}, trying all sources...`);
+    return getAllSourcesFallback(tokenMint, sources);
+  }
+}
+
+async function getAllSourcesFallback(tokenMint: string, sources: Promise<any>[]) {
+  try {
+    const results = await Promise.race([
+      Promise.allSettled(sources),
+      new Promise<PromiseSettledResult<any>[]>((resolve) => 
+        setTimeout(() => resolve([]), 3000)
+      )
+    ]);
+
+    const successfulResults = results
+      .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')
+      .map(result => result.value)
+      .filter(metadata => metadata && metadata.symbol && metadata.name);
+
+    if (successfulResults.length === 0) {
+      return generateFallback(tokenMint);
+    }
+
+    // Find the best result (prioritize those with logos)
+    const resultsWithLogos = successfulResults.filter(r => r.logo || r.logos?.length);
+    const bestResult = resultsWithLogos.length > 0 ? resultsWithLogos[0] : successfulResults[0];
+    
+    // Collect all unique logos from all successful results
+    const allLogos = collectLogosFromResults(results);
+    
+    return {
+      symbol: bestResult.symbol,
+      name: bestResult.name,
+      logo: allLogos[0] || bestResult.logo,
+      logos: allLogos.length > 0 ? allLogos : undefined,
+    };
+  } catch (error) {
+    return generateFallback(tokenMint);
+  }
+}
+
+function collectLogosFromResults(results: PromiseSettledResult<any>[]): string[] {
+  const logos = new Set<string>();
+  
+  results.forEach(result => {
+    if (result.status === 'fulfilled') {
+      const value = result.value;
+      if (value?.logo) logos.add(value.logo);
+      if (value?.logos) {
+        value.logos.forEach((logo: string) => {
+          if (logo && typeof logo === 'string') logos.add(logo);
+        });
       }
     }
-  } catch (e) {
-    console.warn(`DexScreener metadata failed for ${tokenMint}`);
-  }
+  });
 
-  // Fallback to truncated address as symbol
-  const fallback = { 
-    symbol: tokenMint.slice(0, 6) + '...' + tokenMint.slice(-4), 
+  return Array.from(logos).filter(logo => 
+    logo && logo.length > 5 && !logo.includes('undefined')
+  );
+}
+
+// 1. Helius Primary Source
+async function getHeliusMetadata(tokenMint: string) {
+  const HELIUS_API_KEY = 'f9e18339-2a25-473d-8e3c-be24602eb51f'; 
+  
+  try {
+    const response = await fetch(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: '1',
+        method: 'getAsset',
+        params: {
+          id: tokenMint,
+          displayOptions: {
+            showCollectionMetadata: true,
+            showUnverifiedCollections: false,
+            showNativeBalance: false,
+            showInscription: false,
+          }
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Helius HTTP error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.error) {
+      throw new Error(`Helius API error: ${data.error.message}`);
+    }
+
+    const asset = data.result;
+    
+    if (asset) {
+      const symbol = asset.symbol || asset.content?.metadata?.symbol || tokenMint.slice(0, 6);
+      const name = asset.name || asset.content?.metadata?.name || `Token ${tokenMint.slice(0, 6)}`;
+      
+      // Helius provides multiple logo sources
+      const heliusLogos = [
+        asset.content?.links?.image, // Primary image
+        asset.image, // Legacy field
+        asset.logo, // Legacy field
+      ].filter((url): url is string => 
+        typeof url === 'string' && url.length > 5 && !url.includes('undefined')
+      );
+
+      // Add standard logo candidates
+      const allLogos = Array.from(new Set([
+        ...heliusLogos,
+        ...buildStandardLogoCandidates(tokenMint),
+      ]));
+
+      return {
+        symbol,
+        name,
+        logo: allLogos[0],
+        logos: allLogos,
+      };
+    }
+
+    throw new Error('Helius no asset data');
+  } catch (error) {
+    console.warn(`Helius metadata failed for ${tokenMint}:`, error instanceof Error ? error.message : error);
+    throw error;
+  }
+}
+
+// 2. Jupiter Strict Token List (high quality verified tokens)
+async function getJupiterStrictMetadata(tokenMint: string) {
+  try {
+    const response = await fetch('https://token.jup.ag/strict');
+    const tokenList = await response.json();
+    
+    const token = tokenList.find((t: any) => t.address === tokenMint);
+    if (token) {
+      const logos = token.logoURI ? [token.logoURI] : [];
+      return {
+        symbol: token.symbol,
+        name: token.name,
+        logo: token.logoURI,
+        logos,
+      };
+    }
+  } catch (error) {
+    console.warn(`Jupiter strict list failed for ${tokenMint}`);
+  }
+  throw new Error('Jupiter failed');
+}
+
+// 3. Birdeye API (fallback)
+async function getBirdeyeMetadata(tokenMint: string) {
+  try {
+    const response = await fetch(`https://public-api.birdeye.so/defi/token_overview?address=${tokenMint}`, {
+      headers: {
+        'X-API-KEY': 'your-birdeye-api-key-here', // Optional but recommended
+      },
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.data?.symbol) {
+        const logo = data.data.logoURI || data.data.logo;
+        const logos = logo ? [logo] : [];
+        
+        return {
+          symbol: data.data.symbol,
+          name: data.data.name || data.data.symbol,
+          logo,
+          logos,
+        };
+      }
+    }
+  } catch (error) {
+    console.warn(`Birdeye metadata failed for ${tokenMint}`);
+  }
+  throw new Error('Birdeye failed');
+}
+
+// 4. Solana Token List (community maintained)
+async function getSolanaTokenListMetadata(tokenMint: string) {
+  try {
+    const response = await fetch('https://cdn.jsdelivr.net/gh/solana-labs/token-list@main/src/tokens/solana.tokenlist.json');
+    const tokenList = await response.json();
+    
+    const token = tokenList.tokens.find((t: any) => t.address === tokenMint);
+    if (token) {
+      return {
+        symbol: token.symbol,
+        name: token.name,
+        logo: token.logoURI,
+        logos: token.logoURI ? [token.logoURI] : [],
+      };
+    }
+  } catch (error) {
+    console.warn(`Solana token list failed for ${tokenMint}`);
+  }
+  throw new Error('Solana token list failed');
+}
+
+function generateFallback(tokenMint: string) {
+  const fallbackLogos = buildStandardLogoCandidates(tokenMint);
+  return {
+    symbol: tokenMint.slice(0, 6) + '...' + tokenMint.slice(-4),
     name: 'Unknown Token',
-    logo: `https://img.jup.ag/token/${tokenMint}`,
+    logo: fallbackLogos[0],
+    logos: fallbackLogos,
   };
-  tokenMetadataCache.set(tokenMint, fallback);
-  return fallback;
+}
+
+function buildStandardLogoCandidates(tokenMint: string): string[] {
+  return [
+    `https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/${tokenMint}/logo.png`,
+    `https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/${tokenMint}/logo.svg`,
+    `https://pump.fun/cdn/${tokenMint}/logo.png`,
+    `https://pump.fun/cdn/${tokenMint}/logo.webp`,
+  ].filter(url => url && url.length > 0);
 }
 
 /**
@@ -248,27 +660,33 @@ async function fetchAndParseTradesEnhanced(
   const swaps: ParsedSwap[] = [];
   let before: string | undefined = undefined;
   let batchCount = 0;
+  let pageLimit = HELIUS_DEFAULT_PAGE_SIZE;
+  let retryCurrentBatch = false;
+  let repeated400Errors = 0;
 
   console.log(`Using Helius Enhanced API for accurate trade parsing${timeRangeText}...`);
 
   while (true) {
-    batchCount++;
-    const url = `${HELIUS_API_BASE}/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=500${before ? `&before=${before}` : ''}`;
+    if (!retryCurrentBatch) {
+      batchCount++;
+    }
+    retryCurrentBatch = false;
     
     try {
-      const response = await retryWithBackoff(
-        () => fetch(url).then(r => {
-          if (!r.ok) throw new Error(`Helius API error: ${r.status}`);
-          return r.json();
-        }),
-        5,
-        1200,
-        onProgress
-      );
+      const response = await fetchHeliusTransactionsPage({
+        walletAddress,
+        apiKey,
+        before,
+        limit: pageLimit,
+        onProgress,
+      });
 
-      if (!response || response.length === 0) break;
+      if (!response || response.length === 0) {
+        break;
+      }
 
       console.log(`Batch ${batchCount}: Received ${response.length} transactions from Enhanced API`);
+      repeated400Errors = 0;
 
       let reachedCutoff = false;
       let parsedInBatch = 0;
@@ -305,8 +723,14 @@ async function fetchAndParseTradesEnhanced(
       console.log(`Batch ${batchCount}: Parsed ${parsedInBatch} trades, skipped ${skippedNoTokenTransfers} (no token transfers), ${skippedNoTradedToken} (no valid trade) - ${swaps.length} total so far`);
 
       // Prepare next page and stop when less than limit
-      before = response[response.length - 1]?.signature;
-      if (response.length < 500 || reachedCutoff) break;
+      const lastSignature = response[response.length - 1]?.signature;
+      if (!lastSignature || lastSignature === before) {
+        console.log('No new signature returned from Helius, stopping pagination');
+        break;
+      }
+      before = lastSignature;
+
+      if (response.length < pageLimit || reachedCutoff) break;
       
       onProgress?.(
         `Parsing trades${timeRangeText}... (${swaps.length} found)`,
@@ -316,7 +740,55 @@ async function fetchAndParseTradesEnhanced(
       // Rate limiting
       await sleep(50);
     } catch (error: any) {
-      console.error(`Error fetching Enhanced batch ${batchCount}:`, error?.message || error);
+      if (error instanceof HeliusApiError) {
+        console.error(
+          `Helius error on batch ${batchCount} (status ${error.status}):`,
+          error.message,
+          error.details || ''
+        );
+
+        if (error.status === 400) {
+          repeated400Errors++;
+          if (pageLimit > HELIUS_MIN_PAGE_SIZE) {
+            const newLimit = Math.max(HELIUS_MIN_PAGE_SIZE, Math.floor(pageLimit / 2));
+            if (newLimit < pageLimit) {
+              console.warn(`Reducing Helius page size from ${pageLimit} to ${newLimit} due to 400 error`);
+              onProgress?.(
+                `Helius rejected page size ${pageLimit}. Retrying with ${newLimit} transactions...`,
+                undefined
+              );
+              pageLimit = newLimit;
+              retryCurrentBatch = true;
+              await sleep(100);
+              continue;
+            }
+          }
+
+          if (repeated400Errors >= 2) {
+            onProgress?.(
+              'Helius refused further pages. Falling back to RPC parser for remaining history.',
+              undefined
+            );
+            console.warn('Stopping Enhanced pagination after repeated 400 errors');
+            break;
+          }
+        } else if (error.status === 401 || error.status === 403) {
+          const message = 'Helius API key was rejected. Please verify your API key and try again.';
+          onProgress?.(message, undefined);
+          throw new Error(message);
+        } else if (error.status === 404) {
+          onProgress?.('Helius reports no transactions for this wallet.', undefined);
+          break;
+        } else if (error.status === 0) {
+          onProgress?.('Network error contacting Helius. Falling back to RPC parser.', undefined);
+          break;
+        } else {
+          onProgress?.(`Helius returned error ${error.status}. Using RPC fallback for safety.`, undefined);
+          break;
+        }
+      } else {
+        console.error(`Unexpected error fetching Enhanced batch ${batchCount}:`, error?.message || error);
+      }
       break;
     }
   }
@@ -472,9 +944,11 @@ export async function parseSwapTransactions(
             () => connection.getParsedTransaction(tx.signature, {
               maxSupportedTransactionVersion: 0
             }),
-            5,
-            1200,
-            onProgress
+            {
+              maxRetries: 5,
+              baseDelay: 1200,
+              onProgress,
+            }
           );
 
           if (parsedTx && parsedTx.meta && !parsedTx.meta.err) {
@@ -516,14 +990,43 @@ export async function parseSwapsWithEnhancedAPI(
 ): Promise<ParsedSwap[]> {
   const timeRangeText = daysBack ? ` (last ${daysBack} days)` : '';
 
-  // Run Enhanced fetch and RPC parsing in parallel, then merge
-  const [enhancedSwaps, rpcSwaps] = await Promise.all([
+  // Run Enhanced fetch and RPC parsing in parallel with robust error handling
+  const [enhancedResult, rpcResult] = await Promise.allSettled([
     fetchAndParseTradesEnhanced(walletAddress, daysBack, onProgress),
     (async () => {
       const txs = await fetchWalletTransactions(walletAddress, daysBack, onProgress);
       return parseSwapTransactions(txs, daysBack, onProgress);
-    })()
+    })(),
   ]);
+
+  let enhancedSwaps: ParsedSwap[] = [];
+  let rpcSwaps: ParsedSwap[] = [];
+  let enhancedError: unknown = null;
+  let rpcError: unknown = null;
+
+  if (enhancedResult.status === 'fulfilled') {
+    enhancedSwaps = enhancedResult.value;
+  } else {
+    enhancedError = enhancedResult.reason;
+    console.warn('Helius Enhanced parsing failed:', enhancedError);
+    onProgress?.('Helius Enhanced API unavailable. Continuing with RPC data…', undefined);
+  }
+
+  if (rpcResult.status === 'fulfilled') {
+    rpcSwaps = rpcResult.value;
+  } else {
+    rpcError = rpcResult.reason;
+    console.warn('RPC fallback parsing failed:', rpcError);
+    onProgress?.('Solana RPC requests failed. Attempting to continue with partial Helius data…', undefined);
+  }
+
+  if (enhancedSwaps.length === 0 && rpcSwaps.length === 0) {
+    const message =
+      (enhancedError instanceof Error && enhancedError.message) ||
+      (rpcError instanceof Error && rpcError.message) ||
+      'Unable to retrieve trades from Solana. Please try again shortly.';
+    throw new Error(message);
+  }
 
   // Merge by signature, prefer Enhanced
   const bySig = new Map<string, ParsedSwap>();
@@ -539,12 +1042,22 @@ export async function parseSwapsWithEnhancedAPI(
       const meta = await getTokenMetadata(mint);
       return [mint, meta] as const;
     }));
-    const metaMap = new Map<string, { symbol: string; name: string; logo?: string }>(metaEntries);
+    const metaMap = new Map<string, Awaited<ReturnType<typeof getTokenMetadata>>>(metaEntries);
     for (const swap of merged) {
       const m = metaMap.get(swap.tokenMint);
       if (m) {
         swap.tokenSymbol = m.symbol;
         swap.tokenName = m.name;
+        swap.tokenLogo = m.logo ?? swap.tokenLogo;
+        if (m.logos && m.logos.length > 0) {
+          const existing = new Set(swap.tokenLogos ?? []);
+          for (const logo of m.logos) {
+            if (logo) existing.add(logo);
+          }
+          swap.tokenLogos = Array.from(existing);
+        } else if (m.logo && (!swap.tokenLogos || swap.tokenLogos.length === 0)) {
+          swap.tokenLogos = [m.logo];
+        }
       }
     }
   }

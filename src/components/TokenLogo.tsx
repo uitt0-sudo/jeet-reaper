@@ -5,6 +5,7 @@ interface TokenLogoProps {
   alt?: string;
   className?: string;
   size?: number;
+  preferredUrls?: string[];
 }
 
 // Generate a deterministic, pretty SVG identicon as a 100% fallback
@@ -44,41 +45,68 @@ function makeIdenticonDataUrl(key: string, size: number) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-export const TokenLogo: React.FC<TokenLogoProps> = ({ mint, alt = "token logo", className = "h-8 w-8 rounded-full border border-border object-cover", size = 32 }) => {
+export const TokenLogo: React.FC<TokenLogoProps> = ({
+  mint,
+  alt = "token logo",
+  className = "h-8 w-8 rounded-full border border-border object-cover",
+  size = 32,
+  preferredUrls = [],
+}) => {
   const [idx, setIdx] = useState(0);
 
   const sources = useMemo(() => {
     const identicon = makeIdenticonDataUrl(mint || "unknown", size);
-    if (!mint) return ["/placeholder.svg", identicon];
-    const m = encodeURIComponent(mint);
-    // Proxy remote images to avoid CORS/referrer issues and ensure load success
-    const p = (u: string) =>
-      u.startsWith("http")
-        ? `https://images.weserv.nl/?url=${encodeURIComponent(u.replace(/^https?:\/\//, ""))}&w=${size}&h=${size}&fit=cover&we`
-        : u;
+    const seen = new Set<string>();
+    const ordered: string[] = [];
 
-    return [
-      // DexScreener ds-data CDN (most reliable, no proxy needed)
-      `https://dd.dexscreener.com/ds-data/tokens/solana/${m}.png`,
-      // Jupiter CDN (direct, usually works)
-      `https://img.jup.ag/token/${m}`,
-      // Birdeye resized (direct)
-      `https://img.birdeye.so/logo-go/${m}?w=${size}&h=${size}`,
-      // Raydium CDN
-      `https://img-v1.raydium.io/icon/${m}.png`,
-      // DexScreener token icons CDN
-      `https://cdn.dexscreener.com/token-icons/solana/${m}.png`,
-      // Moralis CloudFront for pump.fun tokens
-      `https://d23exngyjlavgo.cloudfront.net/solana_${m}`,
-      // Solana token list (proxied to avoid CORS)
-      p(`https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/${m}/logo.png`),
-      // TrustWallet assets (proxied)
-      p(`https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/assets/${m}/logo.png`),
-      // Local placeholder then deterministic identicon
-      "/placeholder.svg",
-      identicon,
-    ];
-  }, [mint, size]);
+    const proxify = (url: string) => {
+      if (!url) return url;
+      if (url.startsWith("data:")) return url;
+      if (!url.startsWith("http")) return url;
+      const stripped = url.replace(/^https?:\/\//, "");
+      return `https://images.weserv.nl/?url=${encodeURIComponent(stripped)}&w=${size}&h=${size}&fit=cover&we`;
+    };
+
+    const addSource = (url?: string, useProxy = true) => {
+      if (!url || url.length < 5) return;
+      const finalUrl = useProxy ? proxify(url) : url;
+      if (!finalUrl || seen.has(finalUrl)) return;
+      seen.add(finalUrl);
+      ordered.push(finalUrl);
+    };
+
+    preferredUrls.forEach((url) => addSource(url, !url.startsWith("data:")));
+
+    if (!mint) {
+      addSource("/placeholder.svg", false);
+      addSource(identicon, false);
+      return ordered.length > 0 ? ordered : ["/placeholder.svg", identicon];
+    }
+
+    const encodedMint = encodeURIComponent(mint);
+
+    // DexScreener ds-data CDN (most reliable, no proxy needed)
+    addSource(`https://dd.dexscreener.com/ds-data/tokens/solana/${encodedMint}.png`, false);
+    // Jupiter CDN (direct, usually works)
+    addSource(`https://img.jup.ag/token/${encodedMint}`, false);
+    // Birdeye resized (direct)
+    addSource(`https://img.birdeye.so/logo-go/${encodedMint}?w=${size}&h=${size}`, false);
+    // Raydium CDN
+    addSource(`https://img-v1.raydium.io/icon/${encodedMint}.png`, false);
+    // DexScreener token icons CDN
+    addSource(`https://cdn.dexscreener.com/token-icons/solana/${encodedMint}.png`, false);
+    // Moralis CloudFront for pump.fun tokens
+    addSource(`https://d23exngyjlavgo.cloudfront.net/solana_${encodedMint}`, false);
+    // Solana token list (proxied to avoid CORS)
+    addSource(`https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/${encodedMint}/logo.png`, true);
+    // TrustWallet assets (proxied)
+    addSource(`https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/assets/${encodedMint}/logo.png`, true);
+    // Local placeholder then deterministic identicon
+    addSource("/placeholder.svg", false);
+    addSource(identicon, false);
+
+    return ordered;
+  }, [mint, size, preferredUrls]);
 
   const src = sources[Math.min(idx, sources.length - 1)];
 

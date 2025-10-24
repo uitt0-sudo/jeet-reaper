@@ -19,6 +19,8 @@ interface TradePosition {
   tokenMint: string;
   tokenSymbol: string;
   tokenName: string;
+  tokenLogo?: string;
+  tokenLogos?: string[];
   buys: Array<{
     signature: string;
     timestamp: number;
@@ -108,16 +110,36 @@ function groupIntoPositions(swaps: any[]): TradePosition[] {
 
   for (const swap of swaps) {
     if (!positionMap.has(swap.tokenMint)) {
+      const fallbackSymbol = swap.tokenSymbol || (swap.tokenMint ? `${swap.tokenMint.slice(0, 4)}...${swap.tokenMint.slice(-4)}` : 'Unknown');
+      const fallbackName = swap.tokenName || fallbackSymbol || 'Unknown Token';
       positionMap.set(swap.tokenMint, {
         tokenMint: swap.tokenMint,
-        tokenSymbol: swap.tokenSymbol,
-        tokenName: swap.tokenName,
+        tokenSymbol: fallbackSymbol,
+        tokenName: fallbackName,
+        tokenLogo: swap.tokenLogo,
+        tokenLogos: swap.tokenLogos,
         buys: [],
         sells: []
       });
     }
 
     const position = positionMap.get(swap.tokenMint)!;
+    if (!position.tokenSymbol && swap.tokenSymbol) {
+      position.tokenSymbol = swap.tokenSymbol;
+    }
+    if (!position.tokenName && swap.tokenName) {
+      position.tokenName = swap.tokenName;
+    }
+    if (!position.tokenLogo && swap.tokenLogo) {
+      position.tokenLogo = swap.tokenLogo;
+    }
+    if (swap.tokenLogos && swap.tokenLogos.length > 0) {
+      const existing = new Set(position.tokenLogos ?? []);
+      for (const logo of swap.tokenLogos) {
+        if (logo) existing.add(logo);
+      }
+      position.tokenLogos = Array.from(existing);
+    }
     
     if (swap.type === 'buy') {
       position.buys.push({
@@ -158,7 +180,18 @@ async function calculatePaperhandsEvents(
     onProgress?.(`Analyzing ${position.tokenSymbol}...`, progressPercent);
     
     // Match each sell with its corresponding buys (FIFO)
-    const buys = [...position.buys].sort((a, b) => a.timestamp - b.timestamp);
+    const buys = [...position.buys]
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map(buy => {
+        const amount = buy.amount ?? 0;
+        const totalCost = buy.totalCost || (amount * buy.price);
+        const unitCost = amount > 0 ? totalCost / amount : 0;
+        return {
+          ...buy,
+          remainingAmount: amount,
+          unitCost,
+        };
+      });
     const sells = [...position.sells].sort((a, b) => a.timestamp - b.timestamp);
 
     // Get current price once per token (may fail for dead/unlisted tokens)
@@ -172,21 +205,65 @@ async function calculatePaperhandsEvents(
     }
 
     for (const sell of sells) {
-      // Find the buy that corresponds to this sell (FIFO matching)
-      const matchingBuy = buys.shift();
-      
-      if (!matchingBuy) continue;
+      const sellAmount = sell.amount ?? 0;
+      if (sellAmount <= 0) continue;
 
-      // Calculate metrics
-      const buyValue = matchingBuy.totalCost || (matchingBuy.amount * matchingBuy.price);
-      const sellValue = sell.totalValue || (sell.amount * sell.price);
+      let remainingToMatch = sellAmount;
+      const matchedLots: Array<{ amount: number; cost: number; timestamp: number }> = [];
+      const EPSILON = 1e-9;
+
+      while (remainingToMatch > EPSILON && buys.length > 0) {
+        const lot = buys[0];
+        const amountFromLot = Math.min(lot.remainingAmount, remainingToMatch);
+        if (amountFromLot <= 0) {
+          buys.shift();
+          continue;
+        }
+
+        const cost = lot.unitCost * amountFromLot;
+        matchedLots.push({
+          amount: amountFromLot,
+          cost,
+          timestamp: lot.timestamp,
+        });
+
+        lot.remainingAmount -= amountFromLot;
+        remainingToMatch -= amountFromLot;
+
+        if (lot.remainingAmount <= EPSILON) {
+          buys.shift();
+        }
+      }
+
+      const matchedAmount = matchedLots.reduce((sum, lot) => sum + lot.amount, 0);
+      if (matchedAmount <= EPSILON) {
+        console.debug(`No matching buys found for sell ${sell.signature} of ${position.tokenSymbol}`);
+        continue;
+      }
+
+      const proportionMatched = sellAmount > 0 ? Math.min(1, matchedAmount / sellAmount) : 1;
+      const grossSellValue = sell.totalValue || (sellAmount * sell.price);
+      const sellValue = grossSellValue * proportionMatched;
+      const buyValue = matchedLots.reduce((sum, lot) => sum + lot.cost, 0);
       const realizedProfit = sellValue - buyValue;
       
       // Current value if still holding (use current price if available, else sell price)
-      const effectiveCurrentPrice = currentPrice > 0 ? currentPrice : sell.price;
-      const currentValue = sell.amount * effectiveCurrentPrice;
+      const inferredSellPrice = (matchedAmount > 0 && sellValue > 0)
+        ? sellValue / matchedAmount
+        : sell.price;
+      const effectiveCurrentPrice = currentPrice > 0
+        ? currentPrice
+        : (inferredSellPrice > 0 ? inferredSellPrice : (buyValue > 0 && matchedAmount > 0 ? buyValue / matchedAmount : 0));
+      const currentValue = matchedAmount * effectiveCurrentPrice;
       const missedSinceSell = Math.max(0, currentValue - sellValue);
       const regretPercent = buyValue > 0 ? (missedSinceSell / buyValue) * 100 : 0;
+
+      const averageBuyPrice = matchedAmount > 0 ? buyValue / matchedAmount : 0;
+      const sellPrice = matchedAmount > 0 ? sellValue / matchedAmount : sell.price;
+      const earliestBuyTimestamp = matchedLots.reduce(
+        (earliest, lot) => Math.min(earliest, lot.timestamp),
+        matchedLots[0]?.timestamp ?? sell.timestamp
+      );
 
       // Create event if there's any loss OR significant missed opportunity above $100
       const hasSignificantRegret = (missedSinceSell >= 100);
@@ -198,11 +275,13 @@ async function calculatePaperhandsEvents(
           tokenSymbol: position.tokenSymbol,
           tokenName: position.tokenName,
           tokenMint: position.tokenMint,
-          buyPrice: matchingBuy.price,
-          sellPrice: sell.price,
-          buyDate: new Date(matchingBuy.timestamp).toISOString().split('T')[0],
+          tokenLogo: position.tokenLogo,
+          tokenLogos: position.tokenLogos,
+          buyPrice: averageBuyPrice,
+          sellPrice,
+          buyDate: new Date(earliestBuyTimestamp).toISOString().split('T')[0],
           sellDate: new Date(sell.timestamp).toISOString().split('T')[0],
-          amount: sell.amount,
+          amount: matchedAmount,
           realizedProfit,
           unrealizedProfit: currentValue - buyValue,
           regretAmount: missedSinceSell,
@@ -272,18 +351,34 @@ function generateWalletStats(
     lossRate: Math.round(100 - Math.min(Math.round(winRate), 100)),
     topRegrettedTokens: (() => {
       // Aggregate regret by tokenMint (fallback to symbol)
-      const byMint = new Map<string, { regret: number; symbol: string }>();
+      const byMint = new Map<string, { regret: number; symbol: string; tokenLogo?: string; tokenLogos?: string[] }>();
       for (const e of events) {
         const key = e.tokenMint || e.tokenSymbol;
-        const entry = byMint.get(key) || { regret: 0, symbol: e.tokenSymbol };
+        const entry = byMint.get(key) || { regret: 0, symbol: e.tokenSymbol, tokenLogo: e.tokenLogo, tokenLogos: e.tokenLogos };
         entry.regret += e.regretAmount;
         entry.symbol = e.tokenSymbol || entry.symbol;
+        if (!entry.tokenLogo && e.tokenLogo) {
+          entry.tokenLogo = e.tokenLogo;
+        }
+        if (e.tokenLogos && e.tokenLogos.length > 0) {
+          const existing = new Set(entry.tokenLogos ?? []);
+          for (const logo of e.tokenLogos) {
+            if (logo) existing.add(logo);
+          }
+          entry.tokenLogos = Array.from(existing);
+        }
         byMint.set(key, entry);
       }
       return Array.from(byMint.entries())
         .sort((a, b) => b[1].regret - a[1].regret)
         .slice(0, 3)
-        .map(([mint, v]) => ({ symbol: v.symbol, tokenMint: mint, regretAmount: v.regret }));
+        .map(([mint, v]) => ({
+          symbol: v.symbol,
+          tokenMint: mint,
+          regretAmount: v.regret,
+          tokenLogo: v.tokenLogo,
+          tokenLogos: v.tokenLogos,
+        }));
     })(),
     events,
     analysisDateRange: daysBack && startDate && endDate ? {

@@ -10,6 +10,8 @@ export interface PaperhandsEvent {
   tokenSymbol: string;
   tokenName: string;
   tokenMint?: string;
+  tokenLogo?: string;
+  tokenLogos?: string[];
   buyPrice: number;
   sellPrice: number;
   buyDate: string;
@@ -51,6 +53,8 @@ export interface WalletStats {
     symbol: string;
     tokenMint: string;
     regretAmount: number;
+    tokenLogo?: string;
+    tokenLogos?: string[];
   }>;
   events: PaperhandsEvent[];
   analysisDateRange?: {
