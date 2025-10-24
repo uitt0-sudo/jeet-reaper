@@ -131,10 +131,40 @@ const Dashboard = () => {
       
       <main className="ml-64 mt-16 p-8">
         <div className="mx-auto max-w-7xl space-y-8">
+          {/* Beta Info Banner */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl border-2 border-primary/30 bg-gradient-to-br from-primary/10 to-accent/10 p-6"
+          >
+            <div className="flex items-start gap-4">
+              <div className="rounded-full bg-primary/20 p-3">
+                <AlertTriangle className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="mb-2 text-xl font-bold text-foreground">
+                  🚀 Version 0.1 Beta - Early Access
+                </h3>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>
+                    <strong className="text-foreground">Minimum $100 Filter:</strong> Only shows paperhands events where you missed $100+ or lost $100+ to keep results meaningful.
+                  </p>
+                  <p>
+                    <strong className="text-foreground">Current Prices Only:</strong> "Missed Since Sell" uses today's prices. Historical peak tracking coming soon with Birdeye integration.
+                  </p>
+                  <p>
+                    <strong className="text-foreground">Token Coverage:</strong> Analyzing thousands of transactions per wallet. Some obscure tokens may not show logos or market cap.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
           {/* Search Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
             className="card-money noise-texture relative overflow-hidden rounded-3xl p-8"
           >
             <div className="relative z-10">

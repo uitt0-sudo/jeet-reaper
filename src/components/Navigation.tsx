@@ -1,8 +1,9 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Trophy, FileQuestion, Code, Info, Gift } from "lucide-react";
+import { Home, Trophy, FileQuestion, Code, Info, Gift, TrendingUp, ExternalLink, Twitter } from "lucide-react";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/logo.png";
+import { useEffect, useState } from "react";
 
 const NAV_ITEMS = [
   { path: "/dashboard", icon: Home, label: "Dashboard" },
@@ -15,6 +16,22 @@ const NAV_ITEMS = [
 
 export const Navigation = () => {
   const location = useLocation();
+  const [solPrice, setSolPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchSolPrice = async () => {
+      try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+        const data = await response.json();
+        setSolPrice(data.solana.usd);
+      } catch (error) {
+        console.error('Failed to fetch SOL price:', error);
+      }
+    };
+    fetchSolPrice();
+    const interval = setInterval(fetchSolPrice, 30000); // Update every 30s
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-primary/20 bg-card/50 backdrop-blur-xl">
@@ -50,21 +67,74 @@ export const Navigation = () => {
         })}
       </nav>
 
-      {/* Decorative Stats Box */}
-      <div className="mx-4 mb-4 rounded-lg border border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Platform Stats</span>
+      {/* Live SOL Price */}
+      <div className="mx-4 mb-3 rounded-lg border border-primary/30 bg-gradient-to-br from-primary/10 to-accent/10 p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            <span className="text-xs font-semibold text-muted-foreground">SOL Price</span>
+          </div>
           <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
         </div>
-        <div className="space-y-3">
+        <div className="mt-2">
+          {solPrice ? (
+            <div className="text-2xl font-black gradient-text">${solPrice.toFixed(2)}</div>
+          ) : (
+            <div className="text-xl text-muted-foreground">Loading...</div>
+          )}
+        </div>
+      </div>
+
+      {/* Platform Stats */}
+      <div className="mx-4 mb-3 rounded-lg border border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Platform Stats</span>
+        </div>
+        <div className="space-y-2">
           <div>
-            <div className="text-2xl font-black gradient-text">10,000+</div>
+            <div className="text-xl font-black gradient-text">10,000+</div>
             <div className="text-xs text-muted-foreground">Wallets Analyzed</div>
           </div>
           <div>
-            <div className="text-2xl font-black text-destructive">$50M+</div>
+            <div className="text-xl font-black text-destructive">$50M+</div>
             <div className="text-xs text-muted-foreground">Total Regret Tracked</div>
           </div>
+        </div>
+      </div>
+
+      {/* Quick Links */}
+      <div className="mx-4 mb-3 rounded-lg border border-primary/20 bg-background/30 p-3">
+        <div className="mb-2">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quick Links</span>
+        </div>
+        <div className="space-y-2">
+          <a
+            href="https://dexscreener.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between text-xs text-muted-foreground transition-colors hover:text-primary"
+          >
+            <span>DexScreener</span>
+            <ExternalLink className="h-3 w-3" />
+          </a>
+          <a
+            href="https://solscan.io"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between text-xs text-muted-foreground transition-colors hover:text-primary"
+          >
+            <span>Solscan</span>
+            <ExternalLink className="h-3 w-3" />
+          </a>
+          <a
+            href="https://birdeye.so"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between text-xs text-muted-foreground transition-colors hover:text-primary"
+          >
+            <span>Birdeye</span>
+            <ExternalLink className="h-3 w-3" />
+          </a>
         </div>
       </div>
 
@@ -73,8 +143,9 @@ export const Navigation = () => {
           href="https://twitter.com/bnbpaperhands"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center text-sm text-muted-foreground transition-colors hover:text-primary"
+          className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-primary"
         >
+          <Twitter className="h-4 w-4" />
           @bnbpaperhands
         </a>
       </div>

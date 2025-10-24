@@ -58,21 +58,21 @@ export const TokenLogo: React.FC<TokenLogoProps> = ({ mint, alt = "token logo", 
         : u;
 
     return [
-      // pump.fun CloudFront (by mint)
+      // DexScreener ds-data CDN (most reliable, no proxy needed)
+      `https://dd.dexscreener.com/ds-data/tokens/solana/${m}.png`,
+      // Jupiter CDN (direct, usually works)
+      `https://img.jup.ag/token/${m}`,
+      // Birdeye resized (direct)
+      `https://img.birdeye.so/logo-go/${m}?w=${size}&h=${size}`,
+      // Raydium CDN
+      `https://img-v1.raydium.io/icon/${m}.png`,
+      // DexScreener token icons CDN
+      `https://cdn.dexscreener.com/token-icons/solana/${m}.png`,
+      // Moralis CloudFront for pump.fun tokens
       `https://d23exngyjlavgo.cloudfront.net/solana_${m}`,
-      // bonk.fun (best-effort)
-      `https://bonk.fun/api/token-image/${m}`,
-      // DexScreener direct data CDN
-      p(`https://dd.dexscreener.com/ds-data/tokens/solana/${m}.png`),
-      // Jupiter CDN (proxied)
-      p(`https://img.jup.ag/token/${m}`),
-      // Birdeye CDN (proxied)
-      p(`https://img.birdeye.so/logo-go/${m}?w=${size}&h=${size}`),
-      // DexScreener token icons (proxied)
-      p(`https://cdn.dexscreener.com/token-icons/solana/${m}.png`),
-      // Solana token list (proxied)
+      // Solana token list (proxied to avoid CORS)
       p(`https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/${m}/logo.png`),
-      // TrustWallet assets repo (proxied)
+      // TrustWallet assets (proxied)
       p(`https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/assets/${m}/logo.png`),
       // Local placeholder then deterministic identicon
       "/placeholder.svg",
