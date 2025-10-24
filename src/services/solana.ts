@@ -507,31 +507,7 @@ export async function parseSwapTransactions(
 }
 
 /**
- * Check if a token is from pump.fun by verifying it interacted with pump.fun program
- */
-async function isPumpFunToken(tokenMint: string, signature: string): Promise<boolean> {
-  try {
-    const tx = await connection.getParsedTransaction(signature, {
-      maxSupportedTransactionVersion: 0
-    });
-    
-    if (!tx?.transaction) return false;
-    
-    // Check if pump.fun program is in the transaction
-    const programIds = tx.transaction.message.instructions
-      .map((ix: any) => ix.programId?.toString())
-      .filter(Boolean);
-    
-    return programIds.includes(DEX_PROGRAMS.PUMP_FUN);
-  } catch (error) {
-    console.warn(`Could not verify pump.fun status for ${tokenMint}`);
-    return false;
-  }
-}
-
-/**
  * Main entry point: Parse swaps with Enhanced API (preferred) or RPC fallback
- * ONLY RETURNS PUMP.FUN TOKENS
  */
 export async function parseSwapsWithEnhancedAPI(
   walletAddress: string,
@@ -556,34 +532,15 @@ export async function parseSwapsWithEnhancedAPI(
   const merged = Array.from(bySig.values());
   console.log(`Trade sources merged: Enhanced=${enhancedSwaps.length}, RPC=${rpcSwaps.length}, Combined=${merged.length}${timeRangeText}`);
 
-  // Filter for pump.fun tokens only
-  onProgress?.(`Filtering for pump.fun tokens...`, 75);
-  const pumpFunSwaps: ParsedSwap[] = [];
-  
-  // Check tokens in batches
-  const batchSize = 20;
-  for (let i = 0; i < merged.length; i += batchSize) {
-    const batch = merged.slice(i, Math.min(i + batchSize, merged.length));
-    const results = await Promise.all(
-      batch.map(async (swap) => {
-        const isPumpFun = await isPumpFunToken(swap.tokenMint, swap.signature);
-        return isPumpFun ? swap : null;
-      })
-    );
-    pumpFunSwaps.push(...results.filter((s): s is ParsedSwap => s !== null));
-  }
-  
-  console.log(`Filtered to ${pumpFunSwaps.length} pump.fun tokens (from ${merged.length} total)${timeRangeText}`);
-
   // Fetch metadata for all tokens concurrently
-  if (pumpFunSwaps.length > 0) {
-    const uniqueMints = Array.from(new Set(pumpFunSwaps.map(s => s.tokenMint)));
+  if (merged.length > 0) {
+    const uniqueMints = Array.from(new Set(merged.map(s => s.tokenMint)));
     const metaEntries = await Promise.all(uniqueMints.map(async (mint) => {
       const meta = await getTokenMetadata(mint);
       return [mint, meta] as const;
     }));
     const metaMap = new Map<string, { symbol: string; name: string; logo?: string }>(metaEntries);
-    for (const swap of pumpFunSwaps) {
+    for (const swap of merged) {
       const m = metaMap.get(swap.tokenMint);
       if (m) {
         swap.tokenSymbol = m.symbol;
@@ -592,7 +549,7 @@ export async function parseSwapsWithEnhancedAPI(
     }
   }
 
-  return pumpFunSwaps;
+  return merged;
 }
 
 /**
