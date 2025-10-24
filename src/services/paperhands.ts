@@ -7,10 +7,10 @@
 
 import { 
   parseSwapsWithEnhancedAPI,
-  batchFetchTokenData,
+  getCurrentPriceOnly,
+  fetchTokenMarketCap,
   isValidSolanaAddress,
-  ProgressCallback,
-  TokenMarketData
+  ProgressCallback
 } from './solana';
 import { WalletStats, PaperhandsEvent } from '@/types/paperhands';
 import { generateMockWalletStats } from '@/lib/mockData';
@@ -142,8 +142,8 @@ function groupIntoPositions(swaps: any[]): TradePosition[] {
 }
 
 /**
- * Calculate paperhands events with ATH tracking for true regret
- * "Regret" = what you missed between sell and ATH
+ * Calculate paperhands events using CURRENT PRICE ONLY (no fake estimates)
+ * "Regret" = what you missed since sell, based on current price
  */
 async function calculatePaperhandsEvents(
   positions: TradePosition[],
@@ -151,12 +151,6 @@ async function calculatePaperhandsEvents(
 ): Promise<PaperhandsEvent[]> {
   const events: PaperhandsEvent[] = [];
   const totalPositions = positions.length;
-
-  // OPTIMIZATION: Batch fetch all token data at once (MUCH faster!)
-  onProgress?.('Fetching market data for all tokens...', 85);
-  const uniqueTokens = Array.from(new Set(positions.map(p => p.tokenMint)));
-  const tokenDataMap = await batchFetchTokenData(uniqueTokens);
-  console.log(`Batch fetched market data for ${uniqueTokens.length} unique tokens`);
 
   for (let idx = 0; idx < positions.length; idx++) {
     const position = positions[idx];
@@ -167,13 +161,15 @@ async function calculatePaperhandsEvents(
     const buys = [...position.buys].sort((a, b) => a.timestamp - b.timestamp);
     const sells = [...position.sells].sort((a, b) => a.timestamp - b.timestamp);
 
-    // Get token market data (already fetched in batch!)
-    const tokenData = tokenDataMap.get(position.tokenMint) || {
-      currentPrice: 0,
-      marketCap: 0,
-      athPrice: 0,
-      priceChange24h: 0,
-    };
+    // Get current price once per token (may fail for dead/unlisted tokens)
+    let currentPrice = 0;
+    let marketCap = 0;
+    try {
+      currentPrice = await getCurrentPriceOnly(position.tokenMint);
+      marketCap = await fetchTokenMarketCap(position.tokenMint);
+    } catch (error) {
+      console.warn(`Could not fetch data for ${position.tokenSymbol}`);
+    }
 
     for (const sell of sells) {
       // Find the buy that corresponds to this sell (FIFO matching)
@@ -186,24 +182,14 @@ async function calculatePaperhandsEvents(
       const sellValue = sell.totalValue || (sell.amount * sell.price);
       const realizedProfit = sellValue - buyValue;
       
-      // TRUE PAPERHANDS: Compare to ATH, not just current price
-      const { currentPrice, athPrice, marketCap } = tokenData;
-      const effectiveAthPrice = athPrice > 0 ? athPrice : currentPrice;
+      // Current value if still holding (use current price if available, else sell price)
       const effectiveCurrentPrice = currentPrice > 0 ? currentPrice : sell.price;
-      
-      // Calculate what we missed at ATH (true paperhands regret)
-      const athValue = sell.amount * effectiveAthPrice;
       const currentValue = sell.amount * effectiveCurrentPrice;
-      
-      // Regret is the difference between what we could have had at ATH and what we got
-      const regretAtAth = Math.max(0, athValue - sellValue);
       const missedSinceSell = Math.max(0, currentValue - sellValue);
-      
-      // Use ATH for regret calculation (true paperhands)
-      const regretPercent = buyValue > 0 ? (regretAtAth / buyValue) * 100 : 0;
+      const regretPercent = buyValue > 0 ? (missedSinceSell / buyValue) * 100 : 0;
 
       // Create event if there's any loss OR significant missed opportunity above $100
-      const hasSignificantRegret = (regretAtAth >= 100);
+      const hasSignificantRegret = (missedSinceSell >= 100);
       const hadSignificantLoss = (realizedProfit < 0 && Math.abs(realizedProfit) >= 100);
       
       if (hasSignificantRegret || hadSignificantLoss) {
@@ -219,10 +205,10 @@ async function calculatePaperhandsEvents(
           amount: sell.amount,
           realizedProfit,
           unrealizedProfit: currentValue - buyValue,
-          regretAmount: regretAtAth, // TRUE regret at ATH
+          regretAmount: missedSinceSell,
           regretPercent,
-          peakPrice: effectiveAthPrice, // Show ATH as peak
-          peakDate: new Date().toISOString().split('T')[0], // Approximate (last 24h)
+          peakPrice: effectiveCurrentPrice,
+          peakDate: new Date().toISOString().split('T')[0],
           marketCap,
           txHash: sell.signature.slice(0, 8),
           explorerUrl: `https://solscan.io/tx/${sell.signature}`
