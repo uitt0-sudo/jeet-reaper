@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle, Percent } from "lucide-react";
+import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle, Percent, Info } from "lucide-react";
 import { Navigation, TopBar } from "@/components/Navigation";
 import { AnimatedLoader } from "@/components/AnimatedLoader";
 import { MetricCard } from "@/components/MetricCard";
@@ -20,6 +20,18 @@ import TokenLogo from "@/components/TokenLogo";
 import { formatNumberShort } from "@/lib/utils";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+
+// Calculate cashback reward based on regret amount
+const calculateCashback = (regretAmount: number): string => {
+  if (regretAmount < 100) return "$2-5";
+  if (regretAmount < 300) return "$10-30";
+  if (regretAmount < 1000) return "$50-100";
+  if (regretAmount < 5000) return "$200-500";
+  if (regretAmount < 10000) return "$750-1,500";
+  if (regretAmount < 50000) return "$2,000-5,000";
+  if (regretAmount < 100000) return "$8,000-15,000";
+  return "$20,000+";
+};
 
 const Dashboard = () => {
   const [walletAddress, setWalletAddress] = useState("");
@@ -360,6 +372,25 @@ const Dashboard = () => {
                             key={token.symbol}
                             className="group relative overflow-hidden rounded-xl border border-primary/20 bg-background/50 p-6 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-glow)]"
                           >
+                              {/* Rewards Info Icon - Top Right */}
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="absolute right-4 top-4 z-20 flex h-7 w-7 cursor-help items-center justify-center rounded-full bg-primary/20 backdrop-blur-sm transition-all hover:bg-primary/30 hover:scale-110">
+                                      <Info className="h-4 w-4 text-primary" />
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left" className="max-w-xs">
+                                    <div className="space-y-2">
+                                      <p className="font-bold text-primary">💰 Potential Cashback Reward</p>
+                                      <p className="text-sm">Based on ${token.regretAmount.toLocaleString()} missed opportunity:</p>
+                                      <p className="text-lg font-bold text-primary">{calculateCashback(token.regretAmount)}</p>
+                                      <p className="text-xs text-muted-foreground">Rewards program coming soon!</p>
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+
                               <div className="relative z-10 flex items-center justify-between">
                                 <div className="flex items-center space-x-4">
                                   <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xl font-bold">
