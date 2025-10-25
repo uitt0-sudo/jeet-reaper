@@ -15,11 +15,17 @@ export default function Rewards() {
   const [hasClaimed, setHasClaimed] = useState(false);
   const { toast } = useToast();
 
-  // Mock data for demonstration
+  // Mock data for demonstration - randomize between $20-$200
+  const generateRandomCashback = () => {
+    const min = 20;
+    const max = 200;
+    return (Math.random() * (max - min) + min).toFixed(2);
+  };
+
   const mockCashbackData = [
-    { token: "BONK", regret: 5420.32, cashback: "$379.42" },
-    { token: "WIF", regret: 2150.50, cashback: "$150.54" },
-    { token: "POPCAT", regret: 890.75, cashback: "$62.35" },
+    { token: "BONK", regret: 5420.32, cashback: `$${generateRandomCashback()}` },
+    { token: "WIF", regret: 2150.50, cashback: `$${generateRandomCashback()}` },
+    { token: "POPCAT", regret: 890.75, cashback: `$${generateRandomCashback()}` },
   ];
 
   const totalCashback = mockCashbackData.reduce((sum, item) => {
@@ -309,8 +315,11 @@ export default function Rewards() {
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.4 }}
                     >
-                      <CardDescription className="text-lg">
+                      <CardDescription className="text-base text-muted-foreground/80 max-w-2xl mx-auto">
                         Based on your paperhands trading history
+                      </CardDescription>
+                      <CardDescription className="text-sm text-muted-foreground/60 max-w-2xl mx-auto mt-3 italic">
+                        * Amount varies based on token price, dynamic fees, and token volume. This is not everything.
                       </CardDescription>
                     </motion.div>
                   </motion.div>
