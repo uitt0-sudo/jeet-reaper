@@ -15,10 +15,10 @@ export default function Rewards() {
   const [hasClaimed, setHasClaimed] = useState(false);
   const { toast } = useToast();
 
-  // Mock data for demonstration - randomize between $20-$200
+  // Mock data for demonstration - randomize between $20-$100
   const generateRandomCashback = () => {
     const min = 20;
-    const max = 200;
+    const max = 100;
     return (Math.random() * (max - min) + min).toFixed(2);
   };
 
