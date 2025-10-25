@@ -15,23 +15,18 @@ export default function Rewards() {
   const [hasClaimed, setHasClaimed] = useState(false);
   const { toast } = useToast();
 
-  // Mock data for demonstration - randomize between $20-$100
-  const generateRandomCashback = () => {
+  // Generate single total cashback between $20-$100
+  const [totalCashback] = useState(() => {
     const min = 20;
     const max = 100;
-    return (Math.random() * (max - min) + min).toFixed(2);
-  };
+    return Math.random() * (max - min) + min;
+  });
 
   const mockCashbackData = [
-    { token: "BONK", regret: 5420.32, cashback: `$${generateRandomCashback()}` },
-    { token: "WIF", regret: 2150.50, cashback: `$${generateRandomCashback()}` },
-    { token: "POPCAT", regret: 890.75, cashback: `$${generateRandomCashback()}` },
+    { token: "BONK", regret: 5420.32, cashback: `$${(totalCashback * 0.4).toFixed(2)}` },
+    { token: "WIF", regret: 2150.50, cashback: `$${(totalCashback * 0.35).toFixed(2)}` },
+    { token: "POPCAT", regret: 890.75, cashback: `$${(totalCashback * 0.25).toFixed(2)}` },
   ];
-
-  const totalCashback = mockCashbackData.reduce((sum, item) => {
-    const amount = parseFloat(item.cashback.replace("$", "").replace(",", ""));
-    return sum + amount;
-  }, 0);
 
   const handleScanWallet = async (e: React.FormEvent) => {
     e.preventDefault();
