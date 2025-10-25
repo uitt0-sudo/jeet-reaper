@@ -4,19 +4,8 @@ import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, Wallet, Loader2, Sparkles, CheckCircle2, TrendingDown } from "lucide-react";
+import { DollarSign, Wallet, Loader2, Sparkles, CheckCircle2, Gift, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-const calculateCashback = (regretAmount: number): string => {
-  if (regretAmount < 100) return "$1.40-3.50";
-  if (regretAmount < 300) return "$7-21";
-  if (regretAmount < 1000) return "$21-70";
-  if (regretAmount < 5000) return "$70-350";
-  if (regretAmount < 10000) return "$350-700";
-  if (regretAmount < 50000) return "$700-3,500";
-  if (regretAmount < 100000) return "$3,500-7,000";
-  return "$14,000+";
-};
 
 export default function Rewards() {
   const [walletAddress, setWalletAddress] = useState("");
@@ -68,65 +57,157 @@ export default function Rewards() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      {/* Animated background */}
+      <div className="absolute inset-0 bg-grid-white/[0.02] pointer-events-none" />
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl" />
+      </div>
+      
       <Navigation />
       
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
+      <main className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-8"
+          className="mt-12"
         >
-          <h1 className="text-4xl md:text-6xl font-bold mb-4 text-center bg-gradient-to-r from-primary via-primary-light to-primary bg-clip-text text-transparent">
-            Paperhands Cashback
-          </h1>
-          <p className="text-xl text-muted-foreground mb-12 text-center max-w-2xl mx-auto">
-            Turn your trading regrets into real rewards. Enter your wallet to see your cashback.
-          </p>
-
-          {/* Wallet Input Section */}
+          {/* Hero Section */}
           {!scanComplete && (
-            <Card className="bg-card/50 backdrop-blur-xl border-primary/20 mb-8">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Wallet className="w-5 h-5 text-primary" />
-                  Enter Your Wallet Address
-                </CardTitle>
-                <CardDescription>
-                  We'll scan your transaction history to calculate your cashback rewards
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleScanWallet} className="space-y-4">
-                  <Input
-                    type="text"
-                    placeholder="Your Solana wallet address..."
-                    value={walletAddress}
-                    onChange={(e) => setWalletAddress(e.target.value)}
-                    className="bg-background/50 h-12"
-                    required
-                    disabled={isScanning}
-                  />
-                  <Button 
-                    type="submit" 
-                    className="w-full h-12 text-lg"
-                    disabled={isScanning || !walletAddress}
+            <>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center mb-12"
+              >
+                <motion.div
+                  animate={{ rotate: [0, 10, -10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary/30 via-primary/20 to-transparent flex items-center justify-center backdrop-blur-xl border border-primary/20"
+                >
+                  <Gift className="w-12 h-12 text-primary" />
+                </motion.div>
+                
+                <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary via-primary-light to-primary bg-clip-text text-transparent">
+                  Paperhands Cashback
+                </h1>
+                <p className="text-xl md:text-2xl text-muted-foreground mb-4 max-w-2xl mx-auto">
+                  Turn your trading regrets into real rewards
+                </p>
+                <p className="text-lg text-muted-foreground/70 max-w-xl mx-auto">
+                  Enter your wallet address to discover your claimable cashback
+                </p>
+              </motion.div>
+
+              {/* Wallet Input Section */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                <Card className="bg-gradient-to-br from-card/80 via-card/60 to-card/80 backdrop-blur-2xl border-primary/30 shadow-2xl shadow-primary/10 overflow-hidden relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 pointer-events-none" />
+                  <CardHeader className="text-center space-y-2 relative">
+                    <CardTitle className="text-2xl md:text-3xl flex items-center justify-center gap-3">
+                      <Wallet className="w-7 h-7 text-primary" />
+                      Enter Your Wallet
+                    </CardTitle>
+                    <CardDescription className="text-base">
+                      We'll analyze your transaction history to calculate your cashback rewards
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="relative">
+                    <form onSubmit={handleScanWallet} className="space-y-5">
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          placeholder="Your Solana wallet address..."
+                          value={walletAddress}
+                          onChange={(e) => setWalletAddress(e.target.value)}
+                          className="bg-background/80 backdrop-blur-sm h-14 text-base border-primary/20 focus:border-primary/40 transition-all"
+                          required
+                          disabled={isScanning}
+                        />
+                      </div>
+                      <Button 
+                        type="submit" 
+                        className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-primary to-primary-light hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+                        disabled={isScanning || !walletAddress}
+                      >
+                        {isScanning ? (
+                          <>
+                            <Loader2 className="w-6 h-6 mr-2 animate-spin" />
+                            Scanning Wallet...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-6 h-6 mr-2" />
+                            Scan for Cashback
+                          </>
+                        )}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                {/* Feature Cards */}
+                <div className="grid md:grid-cols-3 gap-4 mt-8">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
                   >
-                    {isScanning ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Scanning Wallet...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-5 h-5 mr-2" />
-                        Scan for Rewards
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
+                    <Card className="bg-card/40 backdrop-blur-xl border-primary/10 h-full">
+                      <CardContent className="pt-6 text-center">
+                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                          <Zap className="w-6 h-6 text-primary" />
+                        </div>
+                        <h3 className="font-semibold mb-2">Instant Analysis</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Get your cashback calculated in seconds
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                  
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                  >
+                    <Card className="bg-card/40 backdrop-blur-xl border-primary/10 h-full">
+                      <CardContent className="pt-6 text-center">
+                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                          <DollarSign className="w-6 h-6 text-primary" />
+                        </div>
+                        <h3 className="font-semibold mb-2">Real Rewards</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Claim in SOL or USDC directly to your wallet
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                  
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    <Card className="bg-card/40 backdrop-blur-xl border-primary/10 h-full">
+                      <CardContent className="pt-6 text-center">
+                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                          <CheckCircle2 className="w-6 h-6 text-primary" />
+                        </div>
+                        <h3 className="font-semibold mb-2">Fast Delivery</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Receive your cashback in 2-5 minutes
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </div>
+              </motion.div>
+            </>
           )}
 
           {/* Scanning Animation */}
@@ -189,64 +270,51 @@ export default function Rewards() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-6"
+              className="space-y-8"
             >
               {/* Total Cashback Card */}
-              <Card className="bg-gradient-to-br from-primary/20 via-primary/10 to-background border-primary/30 overflow-hidden relative">
+              <Card className="bg-gradient-to-br from-primary/20 via-primary/10 to-background border-primary/30 overflow-hidden relative shadow-2xl shadow-primary/20">
                 <div className="absolute inset-0 bg-grid-white/[0.02] pointer-events-none" />
-                <CardHeader className="text-center pb-8">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
+                
+                <CardHeader className="text-center pb-12 pt-12 relative">
                   <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", bounce: 0.5 }}
-                    className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4"
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", bounce: 0.5, delay: 0.1 }}
+                    className="w-28 h-28 rounded-full bg-gradient-to-br from-primary/40 via-primary/30 to-primary/20 flex items-center justify-center mx-auto mb-6 backdrop-blur-xl border-2 border-primary/30 shadow-lg"
                   >
-                    <DollarSign className="w-10 h-10 text-primary" />
+                    <DollarSign className="w-14 h-14 text-primary" />
                   </motion.div>
-                  <CardTitle className="text-3xl mb-2">Your Cashback Reward</CardTitle>
+                  
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="text-5xl md:text-7xl font-bold text-primary"
                   >
-                    ${totalCashback.toFixed(2)}
-                  </motion.div>
-                  <CardDescription className="text-base mt-4">
-                    Based on your paperhands trading history
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-
-              {/* Breakdown */}
-              <Card className="bg-card/50 backdrop-blur-xl border-primary/20">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingDown className="w-5 h-5 text-primary" />
-                    Cashback Breakdown
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {mockCashbackData.map((item, index) => (
+                    <CardTitle className="text-2xl md:text-3xl mb-4 text-muted-foreground font-medium">
+                      Your Claimable Cashback
+                    </CardTitle>
                     <motion.div
-                      key={item.token}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.1 * index }}
-                      className="flex items-center justify-between p-4 bg-background/50 rounded-lg border border-primary/10"
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.3, type: "spring", bounce: 0.4 }}
+                      className="text-6xl md:text-8xl font-bold bg-gradient-to-r from-primary via-primary-light to-primary bg-clip-text text-transparent mb-4"
                     >
-                      <div>
-                        <div className="font-semibold">{item.token}</div>
-                        <div className="text-sm text-muted-foreground">
-                          Missed: ${item.regret.toFixed(2)}
-                        </div>
-                      </div>
-                      <div className="text-xl font-bold text-primary">
-                        {item.cashback}
-                      </div>
+                      ${totalCashback.toFixed(2)}
                     </motion.div>
-                  ))}
-                </CardContent>
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.4 }}
+                    >
+                      <CardDescription className="text-lg">
+                        Based on your paperhands trading history
+                      </CardDescription>
+                    </motion.div>
+                  </motion.div>
+                </CardHeader>
               </Card>
 
               {/* Claim Section */}
