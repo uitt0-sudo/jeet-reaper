@@ -14,6 +14,105 @@ export type Database = {
   }
   public: {
     Tables: {
+      cashbacks: {
+        Row: {
+          amount: number
+          claimed_at: string | null
+          created_at: string | null
+          id: string
+          wallet_address: string
+        }
+        Insert: {
+          amount: number
+          claimed_at?: string | null
+          created_at?: string | null
+          id?: string
+          wallet_address: string
+        }
+        Update: {
+          amount?: number
+          claimed_at?: string | null
+          created_at?: string | null
+          id?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
+      rewards: {
+        Row: {
+          claimed_at: string | null
+          created_at: string | null
+          id: string
+          reward_amount: number
+          wallet_address: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          created_at?: string | null
+          id?: string
+          reward_amount: number
+          wallet_address: string
+        }
+        Update: {
+          claimed_at?: string | null
+          created_at?: string | null
+          id?: string
+          reward_amount?: number
+          wallet_address?: string
+        }
+        Relationships: []
+      }
+      token_metadata: {
+        Row: {
+          logo: string | null
+          mint: string
+          name: string
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          logo?: string | null
+          mint: string
+          name: string
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          logo?: string | null
+          mint?: string
+          name?: string
+          symbol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      token_prices: {
+        Row: {
+          ath_price: number | null
+          market_cap: number | null
+          mint: string
+          price: number
+          price_change_24h: number | null
+          updated_at: string
+        }
+        Insert: {
+          ath_price?: number | null
+          market_cap?: number | null
+          mint: string
+          price: number
+          price_change_24h?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ath_price?: number | null
+          market_cap?: number | null
+          mint?: string
+          price?: number
+          price_change_24h?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       wallet_analyses: {
         Row: {
           analysis_date_range: Json | null
@@ -21,6 +120,7 @@ export type Database = {
           avg_hold_time: number
           coins_traded: number
           created_at: string
+          expires_at: string | null
           id: string
           top_regretted_tokens: Json | null
           total_events: number
@@ -34,6 +134,7 @@ export type Database = {
           avg_hold_time?: number
           coins_traded?: number
           created_at?: string
+          expires_at?: string | null
           id?: string
           top_regretted_tokens?: Json | null
           total_events?: number
@@ -47,12 +148,55 @@ export type Database = {
           avg_hold_time?: number
           coins_traded?: number
           created_at?: string
+          expires_at?: string | null
           id?: string
           top_regretted_tokens?: Json | null
           total_events?: number
           total_regret?: number
           wallet_address?: string
           win_rate?: number
+        }
+        Relationships: []
+      }
+      wallet_holders: {
+        Row: {
+          cashback_claimed: boolean | null
+          created_at: string | null
+          holdings: number | null
+          last_cashback_at: string | null
+          last_reward_at: string | null
+          last_scan: string | null
+          random_reward_claimed: boolean | null
+          total_cashback: number | null
+          total_rewards: number | null
+          updated_at: string | null
+          wallet_address: string
+        }
+        Insert: {
+          cashback_claimed?: boolean | null
+          created_at?: string | null
+          holdings?: number | null
+          last_cashback_at?: string | null
+          last_reward_at?: string | null
+          last_scan?: string | null
+          random_reward_claimed?: boolean | null
+          total_cashback?: number | null
+          total_rewards?: number | null
+          updated_at?: string | null
+          wallet_address: string
+        }
+        Update: {
+          cashback_claimed?: boolean | null
+          created_at?: string | null
+          holdings?: number | null
+          last_cashback_at?: string | null
+          last_reward_at?: string | null
+          last_scan?: string | null
+          random_reward_claimed?: boolean | null
+          total_cashback?: number | null
+          total_rewards?: number | null
+          updated_at?: string | null
+          wallet_address?: string
         }
         Relationships: []
       }
