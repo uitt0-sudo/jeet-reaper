@@ -20,6 +20,7 @@ export type Database = {
           claimed_at: string | null
           created_at: string | null
           id: string
+          transaction_signature: string | null
           wallet_address: string
         }
         Insert: {
@@ -27,6 +28,7 @@ export type Database = {
           claimed_at?: string | null
           created_at?: string | null
           id?: string
+          transaction_signature?: string | null
           wallet_address: string
         }
         Update: {
@@ -34,6 +36,7 @@ export type Database = {
           claimed_at?: string | null
           created_at?: string | null
           id?: string
+          transaction_signature?: string | null
           wallet_address?: string
         }
         Relationships: []
@@ -44,6 +47,7 @@ export type Database = {
           created_at: string | null
           id: string
           reward_amount: number
+          transaction_signature: string | null
           wallet_address: string
         }
         Insert: {
@@ -51,6 +55,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           reward_amount: number
+          transaction_signature?: string | null
           wallet_address: string
         }
         Update: {
@@ -58,6 +63,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           reward_amount?: number
+          transaction_signature?: string | null
           wallet_address?: string
         }
         Relationships: []
