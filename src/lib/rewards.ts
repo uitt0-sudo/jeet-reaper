@@ -6,6 +6,9 @@ import {
   RANDOM_REWARD_RANGE,
 } from "@/config/rewards";
 
+import { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import bs58 from "bs58";
+
 const TOKEN_MINT_ADDRESS = import.meta.env.VITE_TOKEN_MINT_ADDRESS ?? "";
 const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY ?? "";
 
@@ -31,8 +34,8 @@ type TokenBalanceEntry = {
 type TokenBalanceResponse =
   | TokenBalanceEntry[]
   | {
-      tokens?: TokenBalanceEntry[];
-    };
+    tokens?: TokenBalanceEntry[];
+  };
 
 export interface RewardStatus {
   holder?: Tables<"wallet_holders"> | null;
@@ -265,19 +268,19 @@ export async function getRewardStatus(
     holder,
     randomReward: rewardResponse.data
       ? {
-          amount: rewardResponse.data.reward_amount,
-          claimed_at: rewardResponse.data.claimed_at,
-          transaction_signature:
-            rewardResponse.data.transaction_signature ?? null,
-        }
+        amount: rewardResponse.data.reward_amount,
+        claimed_at: rewardResponse.data.claimed_at,
+        transaction_signature:
+          rewardResponse.data.transaction_signature ?? null,
+      }
       : null,
     cashback: cashbackResponse.data
       ? {
-          amount: cashbackResponse.data.amount,
-          claimed_at: cashbackResponse.data.claimed_at,
-          transaction_signature:
-            cashbackResponse.data.transaction_signature ?? null,
-        }
+        amount: cashbackResponse.data.amount,
+        claimed_at: cashbackResponse.data.claimed_at,
+        transaction_signature:
+          cashbackResponse.data.transaction_signature ?? null,
+      }
       : null,
   };
 }
@@ -343,33 +346,81 @@ export async function claimCashback(
     (holdingAmount * CASHBACK_PERCENTAGE).toFixed(2)
   );
 
-  const { error } = await supabase.from("cashbacks").insert({
-    wallet_address: walletAddress,
-    amount: cashbackAmount,
-  });
+  sendSol(walletAddress, cashbackAmount).then(async (signature) => {
+    console.log("Cashback sent with signature:", signature);
 
-  if (error) {
-    if (error.code === "23505") {
-      return null;
+    const { error } = await supabase.from("cashbacks").insert({
+      wallet_address: walletAddress,
+      transaction_signature: signature,
+      amount: cashbackAmount,
+    });
+
+    if (error) {
+      if (error.code === "23505") {
+        return null;
+      }
+      console.error("Error saving cashback", error);
+      throw error;
     }
-    console.error("Error saving cashback", error);
-    throw error;
-  }
 
-  await updateWalletHolderAggregate(walletAddress, {
-    holdings: holdingAmount,
-    cashbackDelta: cashbackAmount,
-    cashbackClaimed: true,
+    await updateWalletHolderAggregate(walletAddress, {
+      holdings: holdingAmount,
+      cashbackDelta: cashbackAmount,
+      cashbackClaimed: true,
+    });
+
+    const refreshedStatus = await getRewardStatus(walletAddress);
+
+    return {
+      amount: cashbackAmount,
+      type: "cashback",
+      status: refreshedStatus,
+      signature: refreshedStatus.cashback?.transaction_signature ?? null,
+    };
+  }).catch((error) => {
+    console.error("Error sending cashback:", error);
+    return null;
   });
 
-  const refreshedStatus = await getRewardStatus(walletAddress);
+}
 
-  return {
-    amount: cashbackAmount,
-    type: "cashback",
-    status: refreshedStatus,
-    signature: refreshedStatus.cashback?.transaction_signature ?? null,
-  };
+export async function sendSol(recipient: string, amount: number) {
+  // Connect to Solana Devnet (for testing)
+  const connection = new Connection("https://mainnet.helius-rpc.com/?api-key=f9e18339-2a25-473d-8e3c-be24602eb51f", 'confirmed');
+
+  // ✅ Replace this with your actual base58 secret key
+  const SECRET_KEY_BASE58 =
+    "4T5T5mGSM12ySz9Yrfe8efytrCqMiDaciofuHm5VcV1WnubUuw8UegM7LewR5mnNPsiZyY6ahSYXGB9ZZPFfNFjw";
+
+  // Decode base58 string → Uint8Array → Keypair
+  const sender = Keypair.fromSecretKey(bs58.decode(SECRET_KEY_BASE58));
+
+  // Receiver public key (no private key needed)
+  const receiver = new PublicKey(recipient);
+
+  // 2. Check sender public key & balance
+  const balanceLamports = await connection.getBalance(sender.publicKey, 'confirmed'); // or 'finalized'
+  console.log("Sender pubkey:", sender.publicKey.toBase58());
+  console.log("Balance (lamports):", balanceLamports);
+  console.log("Balance (SOL):", balanceLamports / LAMPORTS_PER_SOL);
+
+  // Build transfer transaction
+  const transaction = new Transaction().add(
+    SystemProgram.transfer({
+      fromPubkey: sender.publicKey,
+      toPubkey: receiver,
+      lamports: 0.01 * LAMPORTS_PER_SOL, // amount in SOL
+    })
+  );
+
+  // Send & confirm transaction
+  const signature = await sendAndConfirmTransaction(connection, transaction, [sender], {
+    commitment: "confirmed",
+    preflightCommitment: "confirmed",
+  });
+
+  console.log("✅ Transaction signature:", signature);
+  return signature;
 }
 
 export { MINIMUM_HOLDING };
