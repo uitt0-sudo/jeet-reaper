@@ -10,15 +10,32 @@ Track the biggest regrets in Solana trading. See who sold too early and missed g
 ## 🚀 Quick Start
 
 ```bash
-# Install dependencies
+# Install frontend dependencies
 npm install
 
-# Run development server
+# Install backend dependencies
+npm install --prefix backend
+
+# Run frontend (Vite)
 npm run dev
+
+# Run rewards backend API (Next.js)
+npm run dev --prefix backend
 
 # Build for production
 npm run build
+npm run build --prefix backend
+
+# Preview production build
+npm run preview
 ```
+
+### Rewards Backend (Next.js)
+
+- API routes live in `backend/app/api/*` and use the Solana signer to send payouts.
+- Copy `backend/.env.example` to `backend/.env` and fill in server-side secrets (Supabase service key, reward wallet key, etc.).
+- Point the frontend at the backend by setting `VITE_REWARDS_API_BASE_URL` (defaults to `http://localhost:3000/api/rewards`).
+- Deploy the backend separately (e.g. Vercel) so the signer never ships to the browser bundle.
 
 ---
 

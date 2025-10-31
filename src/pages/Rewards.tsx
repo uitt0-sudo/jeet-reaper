@@ -6,55 +6,211 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, Wallet, Loader2, Sparkles, CheckCircle2, Gift, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  claimCashback,
+  fetchTokenHoldings,
+  generateRandomReward,
+  getRewardStatus,
+  MINIMUM_HOLDING,
+  syncWalletHolder,
+  type RewardStatus,
+} from "@/lib/rewards";
+import { CASHBACK_PERCENTAGE, RANDOM_REWARD_RANGE } from "@/config/rewards";
 
 export default function Rewards() {
   const [walletAddress, setWalletAddress] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
-  const [isClaiming, setIsClaiming] = useState(false);
-  const [hasClaimed, setHasClaimed] = useState(false);
+  const [tokenHoldings, setTokenHoldings] = useState<number | null>(null);
+  const [rewardStatus, setRewardStatus] = useState<RewardStatus | null>(null);
+  const [isRandomRewardLoading, setIsRandomRewardLoading] = useState(false);
+  const [isCashbackLoading, setIsCashbackLoading] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
   const { toast } = useToast();
-
-  // Generate single total cashback between $20-$100
-  const [totalCashback] = useState(() => {
-    const min = 20;
-    const max = 100;
-    return Math.random() * (max - min) + min;
-  });
-
-  const mockCashbackData = [
-    { token: "BONK", regret: 5420.32, cashback: `$${(totalCashback * 0.4).toFixed(2)}` },
-    { token: "WIF", regret: 2150.50, cashback: `$${(totalCashback * 0.35).toFixed(2)}` },
-    { token: "POPCAT", regret: 890.75, cashback: `$${(totalCashback * 0.25).toFixed(2)}` },
-  ];
+  const tokenSymbol = import.meta.env.VITE_TOKEN_SYMBOL ?? "TOKEN";
 
   const handleScanWallet = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!walletAddress) return;
+    const trimmedAddress = walletAddress.trim();
+    if (!trimmedAddress) return;
 
     setIsScanning(true);
+    setScanError(null);
     setScanComplete(false);
+    setRewardStatus(null);
+    setTokenHoldings(null);
 
-    // Simulate scanning
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    setIsScanning(false);
-    setScanComplete(true);
+    try {
+      const holdings = await fetchTokenHoldings(trimmedAddress);
+      await syncWalletHolder(trimmedAddress, holdings);
+      const status = await getRewardStatus(trimmedAddress);
+
+      setTokenHoldings(holdings);
+      setRewardStatus(status);
+      setScanComplete(true);
+
+      const holdingsText = holdings.toLocaleString(undefined, {
+        maximumFractionDigits: 2,
+      });
+
+      toast({
+        title: "Wallet scanned",
+        description:
+          holdings >= MINIMUM_HOLDING
+            ? `Detected ${holdingsText} ${tokenSymbol} tokens. You are eligible for cashback.`
+            : `Detected ${holdingsText} ${tokenSymbol} tokens. Minimum ${MINIMUM_HOLDING.toLocaleString()} ${tokenSymbol} required for cashback.`,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to scan wallet. Please try again.";
+      setScanError(message);
+      toast({
+        title: "Scan failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsScanning(false);
+    }
   };
 
+  const handleRandomReward = async () => {
+    const trimmedAddress = walletAddress.trim();
+    if (!trimmedAddress) {
+      return;
+    }
+
+    setIsRandomRewardLoading(true);
+
+    try {
+      const result = await generateRandomReward(trimmedAddress);
+
+      if (!result) {
+        const refreshedStatus = await getRewardStatus(trimmedAddress);
+        setRewardStatus(refreshedStatus);
+
+        toast({
+          title: "No random reward available",
+          description: "This wallet has already received its random reward.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setRewardStatus(result.status);
+      const updatedHoldings = result.status.holder?.holdings;
+      if (typeof updatedHoldings === "number") {
+        setTokenHoldings(updatedHoldings);
+      }
+
+      toast({
+        title: "Random Reward Sent! 🎁",
+        description: `You won ${result.amount.toFixed(
+          2
+        )} ${tokenSymbol}. It will be transferred to your wallet shortly.`,
+        duration: 5000,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to process random reward.";
+      toast({
+        title: "Random reward failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsRandomRewardLoading(false);
+    }
+  };
+
+  const currentHoldings =
+    typeof tokenHoldings === "number"
+      ? tokenHoldings
+      : rewardStatus?.holder?.holdings ?? 0;
+  const potentialCashback = Number(
+    Math.max(0, currentHoldings * CASHBACK_PERCENTAGE).toFixed(2)
+  );
+  const cashbackClaimed = Boolean(rewardStatus?.cashback);
+  const randomRewardClaimed = Boolean(rewardStatus?.randomReward);
+  const claimedCashbackAmount = rewardStatus?.cashback?.amount ?? 0;
+  const claimedCashbackDate = rewardStatus?.cashback?.claimed_at ?? null;
+  const claimedRandomRewardAmount = rewardStatus?.randomReward?.amount ?? 0;
+  const claimedRandomRewardDate =
+    rewardStatus?.randomReward?.claimed_at ?? null;
+  const isCashbackEligible = currentHoldings >= MINIMUM_HOLDING;
+  const holdingsText = currentHoldings.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  });
+  const potentialCashbackText = potentialCashback.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  });
+  const minimumHoldingText = MINIMUM_HOLDING.toLocaleString();
+
   const handleClaimRewards = async (currency: "SOL" | "USDC") => {
-    setIsClaiming(true);
+    const trimmedAddress = walletAddress.trim();
+    if (!trimmedAddress || tokenHoldings === null) {
+      return;
+    }
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    if (tokenHoldings < MINIMUM_HOLDING) {
+      toast({
+        title: "Not eligible yet",
+        description: `You need at least ${MINIMUM_HOLDING.toLocaleString()} ${tokenSymbol} to claim cashback.`,
+        variant: "destructive",
+      });
+      return;
+    }
 
-    setIsClaiming(false);
-    setHasClaimed(true);
+    setIsCashbackLoading(true);
 
-    toast({
-      title: "Cashback Claimed! 🎉",
-      description: `Your ${totalCashback.toFixed(2)} ${currency} cashback will be sent to your wallet in 2-5 minutes.`,
-      duration: 5000,
-    });
+    try {
+      const result = await claimCashback(trimmedAddress, tokenHoldings);
+
+      if (!result) {
+        const refreshedStatus = await getRewardStatus(trimmedAddress);
+        setRewardStatus(refreshedStatus);
+
+        toast({
+          title: "Cashback unavailable",
+          description:
+            refreshedStatus.cashback
+              ? "Cashback has already been claimed for this wallet."
+              : "Unable to process cashback claim. Please try again shortly.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setRewardStatus(result.status);
+      const updatedHoldings = result.status.holder?.holdings;
+      if (typeof updatedHoldings === "number") {
+        setTokenHoldings(updatedHoldings);
+      }
+
+      toast({
+        title: "Cashback Claimed! 🎉",
+        description: `You claimed ${result.amount.toFixed(
+          2
+        )} ${tokenSymbol}. It will be sent to your wallet in 2-5 minutes.`,
+        duration: 5000,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to process cashback claim.";
+      toast({
+        title: "Cashback failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsCashbackLoading(false);
+    }
   };
 
   return (
@@ -148,6 +304,11 @@ export default function Rewards() {
                         )}
                       </Button>
                     </form>
+                    {scanError && (
+                      <p className="text-sm text-destructive text-center pt-2">
+                        {scanError}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -183,7 +344,7 @@ export default function Rewards() {
                         </div>
                         <h3 className="font-semibold mb-2">Real Rewards</h3>
                         <p className="text-sm text-muted-foreground">
-                          Claim in SOL or USDC directly to your wallet
+                          Claim in SOL directly to your wallet
                         </p>
                       </CardContent>
                     </Card>
@@ -301,9 +462,9 @@ export default function Rewards() {
                       initial={{ opacity: 0, scale: 0.5 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.3, type: "spring", bounce: 0.4 }}
-                      className="text-6xl md:text-8xl font-bold bg-gradient-to-r from-primary via-primary-light to-primary bg-clip-text text-transparent mb-4"
+                      className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-primary via-primary-light to-primary bg-clip-text text-transparent mb-4"
                     >
-                      ${totalCashback.toFixed(2)}
+                      {potentialCashbackText} {tokenSymbol}
                     </motion.div>
                     <motion.div
                       initial={{ opacity: 0 }}
@@ -311,10 +472,14 @@ export default function Rewards() {
                       transition={{ delay: 0.4 }}
                     >
                       <CardDescription className="text-base text-muted-foreground/80 max-w-2xl mx-auto">
-                        Based on your paperhands trading history
+                        Holdings detected: {holdingsText} {tokenSymbol}
                       </CardDescription>
                       <CardDescription className="text-sm text-muted-foreground/60 max-w-2xl mx-auto mt-3 italic">
-                        * Amount varies based on token price, dynamic fees, and token volume. This is not everything.
+                        {isCashbackEligible
+                          ? `Cashback rate: ${(CASHBACK_PERCENTAGE * 100).toFixed(
+                              1
+                            )}% of your holdings.`
+                          : `Minimum holding required: ${minimumHoldingText} ${tokenSymbol} to claim cashback.`}
                       </CardDescription>
                     </motion.div>
                   </motion.div>
@@ -330,7 +495,7 @@ export default function Rewards() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {hasClaimed ? (
+                  {cashbackClaimed ? (
                     <motion.div
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
@@ -339,54 +504,107 @@ export default function Rewards() {
                       <CheckCircle2 className="w-12 h-12 text-primary mx-auto mb-3" />
                       <h3 className="text-xl font-bold mb-2">Cashback Claimed!</h3>
                       <p className="text-muted-foreground">
-                        Your rewards will arrive in your wallet within 2-5 minutes.
+                        You claimed {claimedCashbackAmount.toFixed(2)} {tokenSymbol}.{" "}
+                        {claimedCashbackDate
+                          ? `Claimed at ${new Date(
+                              claimedCashbackDate
+                            ).toLocaleString()}.`
+                          : "Your rewards will arrive in your wallet shortly."}
                       </p>
                     </motion.div>
                   ) : (
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <Button
-                        size="lg"
-                        onClick={() => handleClaimRewards("SOL")}
-                        disabled={isClaiming}
-                        className="h-16 text-lg"
-                      >
-                        {isClaiming ? (
-                          <>
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <DollarSign className="w-5 h-5 mr-2" />
-                            Claim in SOL
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        size="lg"
-                        variant="outline"
-                        onClick={() => handleClaimRewards("USDC")}
-                        disabled={isClaiming}
-                        className="h-16 text-lg"
-                      >
-                        {isClaiming ? (
-                          <>
-                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <DollarSign className="w-5 h-5 mr-2" />
-                            Claim in USDC
-                          </>
-                        )}
-                      </Button>
-                    </div>
+                    <>
+                      {!isCashbackEligible && (
+                        <div className="rounded-lg border border-border bg-muted/10 p-4 text-sm text-muted-foreground">
+                          Hold at least {minimumHoldingText} {tokenSymbol} to become eligible for cashback.
+                        </div>
+                      )}
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <Button
+                          size="lg"
+                          onClick={() => handleClaimRewards("SOL")}
+                          disabled={isCashbackLoading || !isCashbackEligible}
+                          className="h-16 text-lg"
+                        >
+                          {isCashbackLoading ? (
+                            <>
+                              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <DollarSign className="w-5 h-5 mr-2" />
+                              Claim in SOL
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </>
                   )}
                   
-                  {!hasClaimed && (
+                  {!cashbackClaimed && (
                     <p className="text-sm text-muted-foreground text-center pt-2">
                       💡 Cashback will be sent to your wallet in 2-5 minutes after claiming
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Random Reward Section */}
+              <Card className="bg-card/50 backdrop-blur-xl border-primary/20">
+                <CardHeader>
+                  <CardTitle>Random Reward Drop</CardTitle>
+                  <CardDescription>
+                    Eligible wallets can receive a surprise reward between{" "}
+                    {RANDOM_REWARD_RANGE.min} and {RANDOM_REWARD_RANGE.max}{" "}
+                    {tokenSymbol}.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {randomRewardClaimed ? (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="bg-primary/10 border border-primary/30 rounded-lg p-6 text-center"
+                    >
+                      <CheckCircle2 className="w-12 h-12 text-primary mx-auto mb-3" />
+                      <h3 className="text-xl font-bold mb-2">
+                        Random Reward Claimed!
+                      </h3>
+                      <p className="text-muted-foreground">
+                        You received {claimedRandomRewardAmount.toFixed(2)}{" "}
+                        {tokenSymbol}.{" "}
+                        {claimedRandomRewardDate
+                          ? `Sent at ${new Date(
+                              claimedRandomRewardDate
+                            ).toLocaleString()}.`
+                          : "It will arrive shortly."}
+                      </p>
+                    </motion.div>
+                  ) : (
+                    <Button
+                      size="lg"
+                      onClick={handleRandomReward}
+                      disabled={isRandomRewardLoading}
+                      className="h-16 text-lg"
+                    >
+                      {isRandomRewardLoading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          Choosing a wallet...
+                        </>
+                      ) : (
+                        <>
+                          <Gift className="w-5 h-5 mr-2" />
+                          Reveal My Random Reward
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  {!randomRewardClaimed && (
+                    <p className="text-sm text-muted-foreground text-center pt-2">
+                      🎲 Rewards are distributed to random leaderboard wallets that
+                      have not yet received a drop.
                     </p>
                   )}
                 </CardContent>
@@ -398,8 +616,12 @@ export default function Rewards() {
                   variant="ghost"
                   onClick={() => {
                     setScanComplete(false);
-                    setHasClaimed(false);
+                    setRewardStatus(null);
+                    setTokenHoldings(null);
                     setWalletAddress("");
+                    setScanError(null);
+                    setIsCashbackLoading(false);
+                    setIsRandomRewardLoading(false);
                   }}
                   className="text-muted-foreground"
                 >
