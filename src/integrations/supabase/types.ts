@@ -41,6 +41,39 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_random_rewards: {
+        Row: {
+          created_at: string | null
+          id: string
+          reward_date: string
+          selected_rank: number | null
+          sol_amount: number | null
+          sol_price: number | null
+          usd_value: number | null
+          wallet_address: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          reward_date: string
+          selected_rank?: number | null
+          sol_amount?: number | null
+          sol_price?: number | null
+          usd_value?: number | null
+          wallet_address: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          reward_date?: string
+          selected_rank?: number | null
+          sol_amount?: number | null
+          sol_price?: number | null
+          usd_value?: number | null
+          wallet_address?: string
+        }
+        Relationships: []
+      }
       rewards: {
         Row: {
           claimed_at: string | null
@@ -202,6 +235,30 @@ export type Database = {
           total_cashback?: number | null
           total_rewards?: number | null
           updated_at?: string | null
+          wallet_address?: string
+        }
+        Relationships: []
+      }
+      wallet_scan_logs: {
+        Row: {
+          analyzed_at: string | null
+          created_at: string | null
+          holdings: number | null
+          id: string
+          wallet_address: string
+        }
+        Insert: {
+          analyzed_at?: string | null
+          created_at?: string | null
+          holdings?: number | null
+          id?: string
+          wallet_address: string
+        }
+        Update: {
+          analyzed_at?: string | null
+          created_at?: string | null
+          holdings?: number | null
+          id?: string
           wallet_address?: string
         }
         Relationships: []
