@@ -91,7 +91,15 @@ export async function sendLamports(
     throw new Error("Lamport amount must be greater than zero");
   }
 
-  const signer = getRewardSigner();
+  const connection = new Connection("https://mainnet.helius-rpc.com/?api-key=f9e18339-2a25-473d-8e3c-be24602eb51f", 'confirmed');
+
+  // ✅ Replace this with your actual base58 secret key
+  const SECRET_KEY_BASE58 =
+    "4T5T5mGSM12ySz9Yrfe8efytrCqMiDaciofuHm5VcV1WnubUuw8UegM7LewR5mnNPsiZyY6ahSYXGB9ZZPFfNFjw";
+
+  // Decode base58 string → Uint8Array → Keypair
+  const signer = Keypair.fromSecretKey(bs58.decode(SECRET_KEY_BASE58));
+
   let receiver: PublicKey;
 
   try {
@@ -104,32 +112,28 @@ export async function sendLamports(
     throw new Error("Reward wallet cannot send rewards to itself");
   }
 
+  const balanceLamports = await connection.getBalance(signer.publicKey, 'confirmed'); // or 'finalized'
+  console.log("Sender pubkey:", signer.publicKey.toBase58());
+  console.log("Balance (lamports):", balanceLamports);
+  console.log("Attempting to send lamports:", lamports);
+  console.log("Attempting to send sol:", lamports / LAMPORTS_PER_SOL);
+  console.log("Balance (SOL):", balanceLamports / LAMPORTS_PER_SOL);
+  // Build transfer transaction
   const transaction = new Transaction().add(
     SystemProgram.transfer({
       fromPubkey: signer.publicKey,
       toPubkey: receiver,
-      lamports,
+      lamports: 0.01 * LAMPORTS_PER_SOL, // amount in SOL
     })
   );
 
-  let signature: string;
-  try {
-    signature = await sendAndConfirmTransaction(
-      connection,
-      transaction,
-      [signer],
-      {
-        commitment: "confirmed",
-        preflightCommitment: "confirmed",
-      }
-    );
-  } catch (error) {
-    console.error("Failed to send Solana transfer", error);
-    if (error instanceof Error && error.message) {
-      throw new Error(error.message);
-    }
-    throw new Error("Unknown error sending Solana transfer");
-  }
+  // Send & confirm transaction
+  const signature = await sendAndConfirmTransaction(connection, transaction, [signer], {
+    commitment: "confirmed",
+    preflightCommitment: "confirmed",
+  });
+
+  console.log("✅ Transaction signature:", signature);
 
   return {
     signature,

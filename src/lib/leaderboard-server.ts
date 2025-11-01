@@ -123,6 +123,8 @@ export async function ensureDailyLeaderboardReward(
   const tag = formatDailyRewardTag(today);
   const rewardAmount = DAILY_REWARD_SOL_AMOUNT;
 
+  console.log("Ensuring daily leaderboard reward for tag:", tag);
+
   const existing = await findDailyRewardByTag(supabase, tag);
   if (existing) {
     return existing;
