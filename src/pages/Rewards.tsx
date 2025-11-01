@@ -214,20 +214,20 @@ export default function Rewards() {
   };
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <div className="min-h-screen bg-background relative overflow-hidden pl-[300px]">
       {/* Animated background */}
       <div className="absolute inset-0 bg-grid-white/[0.02] pointer-events-none" />
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl" />
+        <div className="w-[400px] h-[400px] bg-primary/5 rounded-full blur-3xl" />
       </div>
       
       <Navigation />
       
-      <main className="container mx-auto px-4 py-8 max-w-4xl relative z-10">
+      <main className="container mx-auto px-6 py-6 max-w-3xl relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-12"
+          className="mt-8"
         >
           {/* Hero Section */}
           {!scanComplete && (
@@ -245,10 +245,10 @@ export default function Rewards() {
                   <Gift className="w-12 h-12 text-primary" />
                 </motion.div>
                 
-                <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary via-primary-light to-primary bg-clip-text text-transparent">
+                <h1 className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-primary via-primary-light to-primary bg-clip-text text-transparent">
                   Paperhands Cashback
                 </h1>
-                <p className="text-xl md:text-2xl text-muted-foreground mb-4 max-w-2xl mx-auto">
+                <p className="text-lg md:text-xl text-muted-foreground mb-4 max-w-xl mx-auto">
                   Turn your trading regrets into real rewards
                 </p>
                 <p className="text-lg text-muted-foreground/70 max-w-xl mx-auto">
