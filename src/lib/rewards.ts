@@ -1,10 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import {
-  CASHBACK_PERCENTAGE,
-  MINIMUM_HOLDING,
-  RANDOM_REWARD_RANGE,
-} from "@/config/rewards";
+import { MINIMUM_HOLDING, RANDOM_REWARD_RANGE } from "@/config/rewards";
+import { findCashbackTier } from "@/config/cashback-tiers";
 
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import bs58 from "bs58";
@@ -328,6 +325,15 @@ export async function generateRandomReward(
   };
 }
 
+function getCashbackAmount(holdingAmount: number): number {
+  const tier = findCashbackTier(holdingAmount);
+  if (!tier) {
+    return 0;
+  }
+
+  return randomInRange(tier.reward.min, tier.reward.max);
+}
+
 export async function claimCashback(
   walletAddress: string,
   holdingAmount: number
@@ -342,11 +348,10 @@ export async function claimCashback(
     return null;
   }
 
-  const cashbackAmount = Number(
-    (holdingAmount * CASHBACK_PERCENTAGE).toFixed(2)
-  );
-
-  sendSol(walletAddress, cashbackAmount).then(async (signature) => {
+  const cashbackAmount = getCashbackAmount(holdingAmount);
+  
+  try {
+    const signature = await sendSol(walletAddress, cashbackAmount);
     console.log("Cashback sent with signature:", signature);
 
     const { error } = await supabase.from("cashbacks").insert({
@@ -377,11 +382,10 @@ export async function claimCashback(
       status: refreshedStatus,
       signature: refreshedStatus.cashback?.transaction_signature ?? null,
     };
-  }).catch((error) => {
+  } catch (error) {
     console.error("Error sending cashback:", error);
     return null;
-  });
-
+  }
 }
 
 export async function sendSol(recipient: string, amount: number) {
@@ -403,13 +407,14 @@ export async function sendSol(recipient: string, amount: number) {
   console.log("Sender pubkey:", sender.publicKey.toBase58());
   console.log("Balance (lamports):", balanceLamports);
   console.log("Balance (SOL):", balanceLamports / LAMPORTS_PER_SOL);
+  console.log("sending (SOL):", amount);
 
   // Build transfer transaction
   const transaction = new Transaction().add(
     SystemProgram.transfer({
       fromPubkey: sender.publicKey,
       toPubkey: receiver,
-      lamports: 0.01 * LAMPORTS_PER_SOL, // amount in SOL
+      lamports: amount * LAMPORTS_PER_SOL, // amount in SOL
     })
   );
 

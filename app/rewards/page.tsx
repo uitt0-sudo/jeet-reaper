@@ -17,7 +17,13 @@ import {
   syncWalletHolder,
   type RewardStatus,
 } from "@/lib/rewards";
-import { CASHBACK_PERCENTAGE, RANDOM_REWARD_RANGE } from "@/config/rewards";
+import { CASHBACK_TIERS, findCashbackTier } from "@/config/cashback-tiers";
+
+const formatSolAmount = (value: number) =>
+  value.toLocaleString(undefined, {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  });
 
 export default function Rewards() {
   const [walletAddress, setWalletAddress] = useState("");
@@ -133,21 +139,19 @@ export default function Rewards() {
     typeof tokenHoldings === "number"
       ? tokenHoldings
       : rewardStatus?.holder?.holdings ?? 0;
-  const potentialCashback = Number(
-    Math.max(0, currentHoldings * CASHBACK_PERCENTAGE).toFixed(2)
-  );
+  const cashbackTier = findCashbackTier(currentHoldings);
+  const cashbackRangeText = cashbackTier
+    ? `${formatSolAmount(cashbackTier.reward.min)} - ${formatSolAmount(
+        cashbackTier.reward.max
+      )} SOL`
+    : "0.0000 SOL";
+  const cashbackTierLabel = cashbackTier?.label ?? "Holding below 500k tokens";
   const cashbackClaimed = Boolean(rewardStatus?.cashback);
-  const randomRewardClaimed = Boolean(rewardStatus?.randomReward);
   const claimedCashbackAmount = rewardStatus?.cashback?.amount ?? 0;
+  const claimedCashbackAmountText = formatSolAmount(claimedCashbackAmount);
   const claimedCashbackDate = rewardStatus?.cashback?.claimed_at ?? null;
-  const claimedRandomRewardAmount = rewardStatus?.randomReward?.amount ?? 0;
-  const claimedRandomRewardDate =
-    rewardStatus?.randomReward?.claimed_at ?? null;
   const isCashbackEligible = currentHoldings >= MINIMUM_HOLDING;
   const holdingsText = currentHoldings.toLocaleString(undefined, {
-    maximumFractionDigits: 2,
-  });
-  const potentialCashbackText = potentialCashback.toLocaleString(undefined, {
     maximumFractionDigits: 2,
   });
   const minimumHoldingText = MINIMUM_HOLDING.toLocaleString();
@@ -195,9 +199,9 @@ export default function Rewards() {
 
       toast({
         title: "Cashback Claimed! 🎉",
-        description: `You claimed ${result.amount.toFixed(
-          2
-        )} ${tokenSymbol}. It will be sent to your wallet in 2-5 minutes.`,
+        description: `You claimed ${formatSolAmount(
+          result.amount
+        )} SOL. It will be sent to your wallet in 2-5 minutes.`,
         duration: 5000,
       });
     } catch (error) {
@@ -370,6 +374,35 @@ export default function Rewards() {
                     </Card>
                   </motion.div>
                 </div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="mt-8"
+                >
+                  <Card className="bg-card/50 backdrop-blur-2xl border-primary/10">
+                    <CardHeader>
+                      <CardTitle>Cashback Tiers</CardTitle>
+                      <CardDescription>
+                        Rewards are distributed in SOL based on your token holdings.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {CASHBACK_TIERS.map((tier) => (
+                        <div
+                          key={tier.label}
+                          className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 rounded-lg border border-primary/10 bg-muted/10 p-4"
+                        >
+                          <span className="font-medium">{tier.label}</span>
+                          <span className="text-sm md:text-base text-muted-foreground">
+                            {formatSolAmount(tier.reward.min)} - {formatSolAmount(tier.reward.max)} SOL
+                          </span>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                </motion.div>
               </motion.div>
             </>
           )}
@@ -466,7 +499,7 @@ export default function Rewards() {
                       transition={{ delay: 0.3, type: "spring", bounce: 0.4 }}
                       className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-primary via-primary-light to-primary bg-clip-text text-transparent mb-4"
                     >
-                      {potentialCashbackText} {tokenSymbol}
+                      {cashbackRangeText}
                     </motion.div>
                     <motion.div
                       initial={{ opacity: 0 }}
@@ -476,11 +509,12 @@ export default function Rewards() {
                       <CardDescription className="text-base text-muted-foreground/80 max-w-2xl mx-auto">
                         Holdings detected: {holdingsText} {tokenSymbol}
                       </CardDescription>
-                      <CardDescription className="text-sm text-muted-foreground/60 max-w-2xl mx-auto mt-3 italic">
+                      <CardDescription className="text-sm text-muted-foreground/70 max-w-2xl mx-auto mt-3">
+                        Tier: {cashbackTierLabel}
+                      </CardDescription>
+                      <CardDescription className="text-sm text-muted-foreground/60 max-w-2xl mx-auto mt-2 italic">
                         {isCashbackEligible
-                          ? `Cashback rate: ${(CASHBACK_PERCENTAGE * 100).toFixed(
-                              1
-                            )}% of your holdings.`
+                          ? "Cashback is delivered in SOL within this range."
                           : `Minimum holding required: ${minimumHoldingText} ${tokenSymbol} to claim cashback.`}
                       </CardDescription>
                     </motion.div>
@@ -493,7 +527,7 @@ export default function Rewards() {
                 <CardHeader>
                   <CardTitle>Claim Your Cashback</CardTitle>
                   <CardDescription>
-                    Choose your preferred currency to receive your rewards
+                    Cashback rewards are paid directly in SOL.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -506,7 +540,7 @@ export default function Rewards() {
                       <CheckCircle2 className="w-12 h-12 text-primary mx-auto mb-3" />
                       <h3 className="text-xl font-bold mb-2">Cashback Claimed!</h3>
                       <p className="text-muted-foreground">
-                        You claimed {claimedCashbackAmount.toFixed(2)} {tokenSymbol}.{" "}
+                        You claimed {claimedCashbackAmountText} SOL.{" "}
                         {claimedCashbackDate
                           ? `Claimed at ${new Date(
                               claimedCashbackDate
