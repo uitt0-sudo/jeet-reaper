@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/leaderboard/daily-draw",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

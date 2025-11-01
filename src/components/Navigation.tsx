@@ -1,8 +1,11 @@
-import { Link, useLocation } from "react-router-dom";
-import { Home, Trophy, FileQuestion, Code, Info, Gift, TrendingUp, ExternalLink, Twitter } from "lucide-react";
+'use client';
+
+import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
+import { Home, Trophy, FileQuestion, Code, Info, Gift, TrendingUp, Twitter } from "lucide-react";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
-import logo from "@/assets/logo.png";
+import Image from "next/image";
 
 const NAV_ITEMS = [
   { path: "/dashboard", icon: Home, label: "Dashboard" },
@@ -14,22 +17,23 @@ const NAV_ITEMS = [
 ];
 
 export const Navigation = () => {
-  const location = useLocation();
+  const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-primary/20 bg-card/50 backdrop-blur-xl">
       <div className="flex h-20 items-center justify-center border-b border-primary/20">
-        <Link to="/" className="flex items-center space-x-3">
-          <img src={logo} alt="paperhands.cc" className="h-10 w-10" />
+        <Link href="/" className="flex items-center space-x-3">
+          <Image src="/logo.png" alt="paperhands.cc" width={40} height={40} className="h-10 w-10" />
           <span className="shine-effect gradient-text text-2xl font-black">paperhands.cc</span>
         </Link>
       </div>
 
       <nav className="flex-1 space-y-2 p-4">
         {NAV_ITEMS.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = pathname === item.path;
           return (
-            <Link key={item.path} to={item.path}>
+            <Link key={item.path} href={item.path as string}>
               <Button
                 variant={isActive ? "default" : "ghost"}
                 className={cn(
@@ -88,19 +92,19 @@ export const Navigation = () => {
         </div>
         <div className="space-y-2">
           <button
-            onClick={() => window.location.href = '/how-it-works'}
+            onClick={() => router.push("/how-it-works")}
             className="w-full flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2 text-xs font-medium text-foreground transition-all hover:bg-primary/10 hover:text-primary"
           >
             <span>📖 How It Works</span>
           </button>
           <button
-            onClick={() => window.location.href = '/api'}
+            onClick={() => router.push("/api" as any)}
             className="w-full flex items-center justify-between rounded-lg bg-accent/10 px-3 py-2 text-xs font-medium text-accent transition-all hover:bg-accent/20"
           >
             <span>🔌 API Docs</span>
           </button>
           <button
-            onClick={() => window.location.href = '/about'}
+            onClick={() => router.push("/about")}
             className="w-full flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2 text-xs font-medium text-foreground transition-all hover:bg-primary/10 hover:text-primary"
           >
             <span>ℹ️ About</span>

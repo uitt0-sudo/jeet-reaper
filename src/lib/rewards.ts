@@ -9,8 +9,8 @@ import {
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import bs58 from "bs58";
 
-const TOKEN_MINT_ADDRESS = import.meta.env.VITE_TOKEN_MINT_ADDRESS ?? "";
-const HELIUS_API_KEY = import.meta.env.VITE_HELIUS_API_KEY ?? "";
+const TOKEN_MINT_ADDRESS = process.env.NEXT_PUBLIC_TOKEN_MINT_ADDRESS ?? "";
+const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY ?? "";
 
 type TokenBalanceAmount = {
   amount?: string;

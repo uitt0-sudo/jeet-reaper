@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import logo from "@/assets/logo.png";
-
 interface SplashScreenProps {
   onComplete: () => void;
 }
@@ -67,7 +65,7 @@ export const SplashScreen = ({ onComplete }: SplashScreenProps) => {
           className="relative z-10"
         >
           <motion.img
-            src={logo}
+            src="/logo.png"
             alt="paperhands.cc"
             className="h-32 w-32 drop-shadow-[0_0_30px_rgba(74,222,128,0.5)]"
             animate={{
