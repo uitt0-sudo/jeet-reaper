@@ -94,28 +94,6 @@ async function findDailyRewardByTag(
   return mapDailyRewardRow(data, tag);
 }
 
-async function loadPreviouslyRewardedWallets(
-  supabase: SupabaseClient<Database>
-): Promise<Set<string>> {
-  const { data, error } = await supabase
-    .from("rewards")
-    .select("wallet_address")
-    .like("transaction_signature", `${DAILY_REWARD_TAG_PREFIX}:%`);
-
-  if (error) {
-    throw error;
-  }
-
-  const rewarded = new Set<string>();
-  for (const row of data ?? []) {
-    if (row.wallet_address) {
-      rewarded.add(row.wallet_address);
-    }
-  }
-
-  return rewarded;
-}
-
 export async function ensureDailyLeaderboardReward(
   supabase: SupabaseClient<Database>
 ): Promise<DailyLeaderboardReward | null> {
@@ -127,10 +105,9 @@ export async function ensureDailyLeaderboardReward(
 
   const existing = await findDailyRewardByTag(supabase, tag);
   if (existing) {
+    console.log("Daily leaderboard reward already exists for today:", existing);
     return existing;
   }
-
-  const previouslyRewarded = await loadPreviouslyRewardedWallets(supabase);
 
   const { data: topWallets, error: topError } = await supabase
     .from("wallet_analyses")
@@ -146,13 +123,10 @@ export async function ensureDailyLeaderboardReward(
     return null;
   }
 
-  const pool = topWallets.filter(
-    (entry) =>
-      entry.wallet_address &&
-      !previouslyRewarded.has(entry.wallet_address)
-  );
+  const pool = topWallets.filter((entry) => entry.wallet_address);
 
   if (pool.length === 0) {
+    console.log("No eligible wallets for daily leaderboard reward");
     return null;
   }
 
@@ -164,60 +138,37 @@ export async function ensureDailyLeaderboardReward(
       continue;
     }
 
-    const { data: inserted, error: insertError } = await supabase
-      .from("rewards")
-      .insert({
-        wallet_address: candidate.wallet_address,
-        reward_amount: rewardAmount,
-        transaction_signature: tag,
-      })
-      .select(
-        "id, wallet_address, reward_amount, created_at, transaction_signature"
-      )
-      .single();
+    try {
 
-    if (!insertError && inserted) {
-      try {
-        const { signature } = await sendSol(
-          candidate.wallet_address,
-          rewardAmount
-        );
-        const encodedSignature = encodeDailyRewardSignature(tag, signature);
+      console.log("Attempting to send daily reward to:", candidate.wallet_address);
+      const { signature } = await sendSol(
+        candidate.wallet_address,
+        rewardAmount
+      );
+      const encodedSignature = encodeDailyRewardSignature(tag, signature);
 
-        const { data: updated, error: updateError } = await supabase
-          .from("rewards")
-          .update({ transaction_signature: encodedSignature })
-          .eq("id", inserted.id)
-          .select(
-            "id, wallet_address, reward_amount, created_at, transaction_signature"
-          )
-          .single();
+      const { data: inserted, error: insertError } = await supabase
+        .from("rewards")
+        .insert({
+          wallet_address: candidate.wallet_address,
+          reward_amount: rewardAmount,
+          transaction_signature: encodedSignature,
+        })
+        .select(
+          "id, wallet_address, reward_amount, created_at, transaction_signature"
+        )
+        .single();
 
-        if (updateError || !updated) {
-          throw updateError ?? new Error("Failed to update reward record");
-        }
+        console.log("Inserted reward record:", inserted, insertError);
 
-        return mapDailyRewardRow(updated, tag);
-      } catch (error) {
-        const { error: rollbackError } = await supabase
-          .from("rewards")
-          .delete()
-          .eq("id", inserted.id);
-        if (rollbackError) {
-          console.error(
-            "Failed to roll back daily reward record after payment error",
-            rollbackError
-          );
-        }
-        throw error;
+      if (insertError || !inserted) {
+        throw insertError ?? new Error("Failed to insert reward record");
       }
-    }
 
-    if (insertError?.code === "23505") {
-      continue;
+      return mapDailyRewardRow(inserted, tag);
+    } catch (error) {
+      throw error;
     }
-
-    throw insertError;
   }
 
   return null;

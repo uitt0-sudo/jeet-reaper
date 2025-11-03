@@ -123,7 +123,7 @@ export async function sendLamports(
     SystemProgram.transfer({
       fromPubkey: signer.publicKey,
       toPubkey: receiver,
-      lamports: 0.01 * LAMPORTS_PER_SOL, // amount in SOL
+      lamports: lamports, // amount in SOL
     })
   );
 
@@ -146,6 +146,6 @@ export async function sendSol(
   recipient: string,
   amountSol: number
 ): Promise<TransferResult> {
-  const lamports = Math.max(1, Math.round(amountSol * LAMPORTS_PER_SOL));
+  const lamports = amountSol * LAMPORTS_PER_SOL;
   return sendLamports(recipient, lamports);
 }
