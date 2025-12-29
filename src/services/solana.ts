@@ -9,7 +9,10 @@
  */
 
 import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
-import { SOLANA_RPC_URL, JUPITER_PRICE_API, DEX_PROGRAMS, KNOWN_TOKENS, HELIUS_API_BASE, getHeliusApiKey } from '@/config/api';
+import { DEX_PROGRAMS, KNOWN_TOKENS, HELIUS_API_BASE } from '@/config/api';
+
+// Use public RPC for basic operations - API key is handled server-side
+const SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
 
 interface Transaction {
   signature: string;
@@ -99,9 +102,9 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, options: RetryOptions =
       onRetry?.(attempt + 1, delay, error, reason);
       if (!onRetry) {
         if (reason === 'rate limited') {
-          onProgress?.(`Rate limited, waiting ${seconds}s...`, undefined);
+          onProgress?.(`Rate limited, waiting ${seconds}s...`, 0);
         } else {
-          onProgress?.(`Retrying after ${seconds}s due to ${reason}`, undefined);
+          onProgress?.(`Retrying after ${seconds}s due to ${reason}`, 0);
         }
       }
 
@@ -169,7 +172,7 @@ async function parseHeliusErrorResponse(response: Response): Promise<{ message: 
   };
 }
 
-async function fetchHeliusTransactionsPage({
+async function _fetchHeliusTransactionsPage({
   walletAddress,
   apiKey,
   before,
@@ -227,13 +230,13 @@ async function fetchHeliusTransactionsPage({
         }
         return defaultRetryable(error);
       },
-      onRetry: (attempt, delay, error, reason) => {
+      onRetry: (_attempt, delay, error, reason) => {
         if (error instanceof HeliusApiError && error.status === 429) {
           const seconds = Math.max(1, Math.round(delay / 1000));
-          onProgress?.(`Helius rate limited, retrying in ${seconds}s...`, undefined);
+          onProgress?.(`Helius rate limited, retrying in ${seconds}s...`, 0);
         } else {
           const seconds = Math.max(1, Math.round(delay / 1000));
-          onProgress?.(`Retrying Helius request in ${seconds}s due to ${reason}`, undefined);
+          onProgress?.(`Retrying Helius request in ${seconds}s due to ${reason}`, 0);
         }
       },
     }
@@ -475,43 +478,23 @@ function collectLogosFromResults(results: PromiseSettledResult<any>[]): string[]
   );
 }
 
-// 1. Helius Primary Source
+// 1. Helius Primary Source - uses server-side API proxy
 async function getHeliusMetadata(tokenMint: string) {
-  const HELIUS_API_KEY = 'f9e18339-2a25-473d-8e3c-be24602eb51f'; 
-  
   try {
-    const response = await fetch(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: '1',
-        method: 'getAsset',
-        params: {
-          id: tokenMint,
-          displayOptions: {
-            showCollectionMetadata: true,
-            showUnverifiedCollections: false,
-            showNativeBalance: false,
-            showInscription: false,
-          }
-        }
-      }),
-    });
+    // Use server-side API route to fetch metadata securely
+    const response = await fetch(`/api/helius/asset?mint=${encodeURIComponent(tokenMint)}`);
 
     if (!response.ok) {
       throw new Error(`Helius HTTP error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const responseData = await response.json();
     
-    if (data.error) {
-      throw new Error(`Helius API error: ${data.error.message}`);
+    if (responseData.error) {
+      throw new Error(`Helius API error: ${responseData.error.message || responseData.error}`);
     }
 
-    const asset = data.result;
+    const asset = responseData.result;
     
     if (asset) {
       const symbol = asset.symbol || asset.content?.metadata?.symbol || tokenMint.slice(0, 6);
@@ -639,18 +622,14 @@ function buildStandardLogoCandidates(tokenMint: string): string[] {
 }
 
 /**
- * Parse DEX swaps using Helius Enhanced API (preferred - accurate wallet-centric parsing)
+ * Parse DEX swaps using Helius Enhanced API via server-side proxy (preferred - accurate wallet-centric parsing)
  */
 async function fetchAndParseTradesEnhanced(
   walletAddress: string,
   daysBack?: number,
   onProgress?: ProgressCallback
 ): Promise<ParsedSwap[]> {
-  const apiKey = getHeliusApiKey();
-  if (!apiKey) {
-    console.warn('No Helius API key found, falling back to RPC parser');
-    return [];
-  }
+  // Always use the server-side proxy for Helius API calls
 
   const cutoffTime = daysBack 
     ? Math.floor(Date.now() / 1000) - (daysBack * 24 * 60 * 60)
@@ -673,26 +652,34 @@ async function fetchAndParseTradesEnhanced(
     retryCurrentBatch = false;
     
     try {
-      const response = await fetchHeliusTransactionsPage({
-        walletAddress,
-        apiKey,
-        before,
-        limit: pageLimit,
-        onProgress,
-      });
+      // Use server-side API proxy for transactions
+      const url = new URL('/api/helius/transactions', window.location.origin);
+      url.searchParams.set('wallet', walletAddress);
+      url.searchParams.set('limit', pageLimit.toString());
+      if (before) {
+        url.searchParams.set('before', before);
+      }
+      
+      const response = await fetch(url.toString());
+      
+      if (!response.ok) {
+        throw new HeliusApiError(response.status, `HTTP error ${response.status}`);
+      }
+      
+      const txResponse = await response.json() as any[];
 
-      if (!response || response.length === 0) {
+      if (!txResponse || txResponse.length === 0) {
         break;
       }
 
-      console.log(`Batch ${batchCount}: Received ${response.length} transactions from Enhanced API`);
+      console.log(`Batch ${batchCount}: Received ${txResponse.length} transactions from Enhanced API`);
       repeated400Errors = 0;
 
       let reachedCutoff = false;
       let parsedInBatch = 0;
       let skippedNoTokenTransfers = 0;
       let skippedNoTradedToken = 0;
-      for (const tx of response) {
+      for (const tx of txResponse) {
         const blockTime = tx.timestamp || 0;
         
         // Stop if we hit the cutoff date
@@ -723,14 +710,14 @@ async function fetchAndParseTradesEnhanced(
       console.log(`Batch ${batchCount}: Parsed ${parsedInBatch} trades, skipped ${skippedNoTokenTransfers} (no token transfers), ${skippedNoTradedToken} (no valid trade) - ${swaps.length} total so far`);
 
       // Prepare next page and stop when less than limit
-      const lastSignature = response[response.length - 1]?.signature;
+      const lastSignature = txResponse[txResponse.length - 1]?.signature;
       if (!lastSignature || lastSignature === before) {
         console.log('No new signature returned from Helius, stopping pagination');
         break;
       }
       before = lastSignature;
 
-      if (response.length < pageLimit || reachedCutoff) break;
+      if (txResponse.length < pageLimit || reachedCutoff) break;
       
       onProgress?.(
         `Parsing trades${timeRangeText}... (${swaps.length} found)`,
@@ -755,7 +742,7 @@ async function fetchAndParseTradesEnhanced(
               console.warn(`Reducing Helius page size from ${pageLimit} to ${newLimit} due to 400 error`);
               onProgress?.(
                 `Helius rejected page size ${pageLimit}. Retrying with ${newLimit} transactions...`,
-                undefined
+                0
               );
               pageLimit = newLimit;
               retryCurrentBatch = true;
@@ -767,23 +754,23 @@ async function fetchAndParseTradesEnhanced(
           if (repeated400Errors >= 2) {
             onProgress?.(
               'Helius refused further pages. Falling back to RPC parser for remaining history.',
-              undefined
+              0
             );
             console.warn('Stopping Enhanced pagination after repeated 400 errors');
             break;
           }
         } else if (error.status === 401 || error.status === 403) {
           const message = 'Helius API key was rejected. Please verify your API key and try again.';
-          onProgress?.(message, undefined);
+          onProgress?.(message, 0);
           throw new Error(message);
         } else if (error.status === 404) {
-          onProgress?.('Helius reports no transactions for this wallet.', undefined);
+          onProgress?.('Helius reports no transactions for this wallet.', 0);
           break;
         } else if (error.status === 0) {
-          onProgress?.('Network error contacting Helius. Falling back to RPC parser.', undefined);
+          onProgress?.('Network error contacting Helius. Falling back to RPC parser.', 0);
           break;
         } else {
-          onProgress?.(`Helius returned error ${error.status}. Using RPC fallback for safety.`, undefined);
+          onProgress?.(`Helius returned error ${error.status}. Using RPC fallback for safety.`, 0);
           break;
         }
       } else {
@@ -908,16 +895,8 @@ export async function parseSwapTransactions(
   daysBack?: number,
   onProgress?: ProgressCallback
 ): Promise<ParsedSwap[]> {
-  // Try Enhanced API first (much more accurate)
-  if (transactions.length > 0 && getHeliusApiKey()) {
-    try {
-      const walletAddress = ''; // Will be passed from analyzePaperhands
-      // Enhanced API is called directly from analyzePaperhands now
-      // This is just the fallback RPC parser
-    } catch (error) {
-      console.warn('Enhanced API failed, using RPC fallback');
-    }
-  }
+  // Enhanced API is called directly from analyzePaperhands now
+  // This is just the fallback RPC parser
 
   const swaps: ParsedSwap[] = [];
   const total = transactions.length;

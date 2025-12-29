@@ -2,37 +2,9 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { MINIMUM_HOLDING, RANDOM_REWARD_RANGE } from "@/config/rewards";
 import { findCashbackTier } from "@/config/cashback-tiers";
-
-import { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import bs58 from "bs58";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 const TOKEN_MINT_ADDRESS = process.env.NEXT_PUBLIC_TOKEN_MINT_ADDRESS ?? "";
-const HELIUS_API_KEY = process.env.NEXT_PUBLIC_HELIUS_API_KEY ?? "";
-
-type TokenBalanceAmount = {
-  amount?: string;
-  decimals?: number;
-};
-
-type TokenBalanceEntry = {
-  mint?: string;
-  tokenAddress?: string;
-  uiAmount?: number;
-  amount?: number | string;
-  decimals?: number;
-  tokenAmount?: TokenBalanceAmount;
-  uiTokenAmount?: {
-    uiAmount?: number;
-    amount?: string;
-    decimals?: number;
-  };
-};
-
-type TokenBalanceResponse =
-  | TokenBalanceEntry[]
-  | {
-    tokens?: TokenBalanceEntry[];
-  };
 
 export interface RewardStatus {
   holder?: Tables<"wallet_holders"> | null;
@@ -59,61 +31,22 @@ function randomInRange(min: number, max: number) {
   return Math.random() * (max - min) + min;
 }
 
-function parseTokenBalance(entry?: TokenBalanceEntry | null): number {
-  if (!entry) return 0;
-
-  if (typeof entry.uiAmount === "number") {
-    return entry.uiAmount;
-  }
-
-  const uiTokenAmount = entry.uiTokenAmount;
-  if (uiTokenAmount && typeof uiTokenAmount.uiAmount === "number") {
-    return uiTokenAmount.uiAmount;
-  }
-
-  const decimals =
-    typeof entry.decimals === "number"
-      ? entry.decimals
-      : typeof uiTokenAmount?.decimals === "number"
-        ? uiTokenAmount.decimals
-        : typeof entry.tokenAmount?.decimals === "number"
-          ? entry.tokenAmount.decimals
-          : 0;
-
-  const rawAmount =
-    typeof entry.amount === "number"
-      ? entry.amount
-      : typeof entry.amount === "string"
-        ? Number(entry.amount)
-        : typeof entry.tokenAmount?.amount === "string"
-          ? Number(entry.tokenAmount.amount)
-          : null;
-
-  if (rawAmount === null || !Number.isFinite(rawAmount)) {
-    return 0;
-  }
-
-  return decimals > 0 ? rawAmount / Math.pow(10, decimals) : rawAmount;
-}
-
 export async function fetchTokenHoldings(
   walletAddress: string
 ): Promise<number> {
-  if (!walletAddress || !HELIUS_API_KEY || !TOKEN_MINT_ADDRESS) {
+  if (!walletAddress || !TOKEN_MINT_ADDRESS) {
     return 0;
   }
 
-  const url = `https://api.helius.xyz/v0/addresses/${walletAddress}/balances?api-key=${encodeURIComponent(
-    HELIUS_API_KEY
-  )}`;
-
-  const response = await fetch(url);
+  // Use server-side API route to fetch balances securely
+  const response = await fetch(`/api/helius/balances?wallet=${encodeURIComponent(walletAddress)}`);
+  
   if (!response.ok) {
-    console.error(await response.text());
+    console.error('Failed to fetch token balances');
     throw new Error("Failed to fetch token balances");
   }
 
-  const payload = (await response.json()) as {
+  const payload = await response.json() as {
     tokens: Array<{
       tokenAccount: string;
       mint: string;
@@ -388,44 +321,32 @@ export async function claimCashback(
   }
 }
 
-export async function sendSol(recipient: string, amount: number) {
-  // Connect to Solana Devnet (for testing)
-  const connection = new Connection("https://mainnet.helius-rpc.com/?api-key=f9e18339-2a25-473d-8e3c-be24602eb51f", 'confirmed');
-
-  // ✅ Replace this with your actual base58 secret key
-  const SECRET_KEY_BASE58 =
-    "4T5T5mGSM12ySz9Yrfe8efytrCqMiDaciofuHm5VcV1WnubUuw8UegM7LewR5mnNPsiZyY6ahSYXGB9ZZPFfNFjw";
-
-  // Decode base58 string → Uint8Array → Keypair
-  const sender = Keypair.fromSecretKey(bs58.decode(SECRET_KEY_BASE58));
-
-  // Receiver public key (no private key needed)
-  const receiver = new PublicKey(recipient);
-
-  // 2. Check sender public key & balance
-  const balanceLamports = await connection.getBalance(sender.publicKey, 'confirmed'); // or 'finalized'
-  console.log("Sender pubkey:", sender.publicKey.toBase58());
-  console.log("Balance (lamports):", balanceLamports);
-  console.log("Balance (SOL):", balanceLamports / LAMPORTS_PER_SOL);
-  console.log("sending (SOL):", amount);
-
-  // Build transfer transaction
-  const transaction = new Transaction().add(
-    SystemProgram.transfer({
-      fromPubkey: sender.publicKey,
-      toPubkey: receiver,
-      lamports: amount * LAMPORTS_PER_SOL, // amount in SOL
-    })
-  );
-
-  // Send & confirm transaction
-  const signature = await sendAndConfirmTransaction(connection, transaction, [sender], {
-    commitment: "confirmed",
-    preflightCommitment: "confirmed",
+/**
+ * Send SOL via secure server-side API
+ * Private keys are never exposed to the client
+ */
+export async function sendSol(recipient: string, amount: number): Promise<string> {
+  const lamports = Math.floor(amount * LAMPORTS_PER_SOL);
+  
+  const response = await fetch('/api/rewards/send', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      recipient,
+      lamports,
+    }),
   });
-
-  console.log("✅ Transaction signature:", signature);
-  return signature;
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to send reward');
+  }
+  
+  const result = await response.json();
+  console.log("✅ Transaction signature:", result.signature);
+  return result.signature;
 }
 
 export { MINIMUM_HOLDING };
