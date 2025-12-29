@@ -130,8 +130,9 @@ export const Navigation = () => {
 export const TopBar = () => {
   return (
     <header className="fixed left-64 right-0 top-0 z-30 flex h-20 items-center justify-between border-b border-primary/20 bg-card/50 px-8 backdrop-blur-xl">
-      <div className="flex items-center space-x-4">
-        <h2 className="text-xl font-bold text-primary">Solana Paperhands Tracker</h2>
+      <div className="flex items-center space-x-3">
+        <Image src="/logo.png" alt="Paperhands" width={32} height={32} className="h-8 w-8" />
+        <h2 className="text-xl font-bold gradient-text">Paperhands</h2>
       </div>
       
       <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2">
