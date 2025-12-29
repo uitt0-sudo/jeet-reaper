@@ -33,7 +33,7 @@ export const Navigation = () => {
         {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.path;
           return (
-            <Link key={item.path} href={item.path as string}>
+            <Link key={item.path} href={item.path as any}>
               <Button
                 variant={isActive ? "default" : "ghost"}
                 className={cn(

@@ -13,7 +13,7 @@ import {
   ProgressCallback
 } from './solana';
 import { WalletStats, PaperhandsEvent } from '@/types/paperhands';
-import { generateMockWalletStats } from '@/lib/mockData';
+// generateMockWalletStats available in mockData.ts if needed
 
 interface TradePosition {
   tokenMint: string;
@@ -312,7 +312,6 @@ function generateWalletStats(
 ): WalletStats {
   const totalRegret = events.reduce((sum, e) => sum + e.regretAmount, 0);
   const totalRealized = events.reduce((sum, e) => sum + e.realizedProfit, 0);
-  const totalUnrealized = events.reduce((sum, e) => sum + e.unrealizedProfit, 0);
 
   // Calculate hold times
   const holdTimes = events.map(e => {
@@ -325,7 +324,6 @@ function generateWalletStats(
 
   // Calculate win/loss rate
   const wins = events.filter(e => e.realizedProfit > 0).length;
-  const losses = events.filter(e => e.realizedProfit <= 0).length;
   const winRate = events.length > 0 ? (wins / events.length) * 100 : 0;
 
   // Calculate paperhands score (0-100, higher = worse paperhands)

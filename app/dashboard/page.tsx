@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle, Percent, Sparkles, CheckCircle2 } from "lucide-react";
+import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle } from "lucide-react";
 import { Navigation, TopBar } from "@/components/Navigation";
 import { AnimatedLoader } from "@/components/AnimatedLoader";
 import { MetricCard } from "@/components/MetricCard";
@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { generateTokenStats } from "@/lib/mockData";
+// generateTokenStats available in mockData.ts if needed
 import { WalletStats } from "@/types/paperhands";
 import { toast } from "@/hooks/use-toast";
 import { analyzePaperhands } from "@/services/paperhands";
@@ -39,9 +39,7 @@ const Dashboard = () => {
   const [walletStats, setWalletStats] = useState<WalletStats | null>(null);
   const [progressMessage, setProgressMessage] = useState("");
   const [progressPercent, setProgressPercent] = useState(0);
-  const [showSlow, setShowSlow] = useState(false);
-  const [isClaiming, setIsClaiming] = useState(false);
-  const [hasClaimed, setHasClaimed] = useState(false);
+  const [_showSlow, setShowSlow] = useState(false);
 
   const handleAnalyze = async () => {
     const trimmedAddress = walletAddress.trim();
@@ -142,66 +140,6 @@ const Dashboard = () => {
       setProgressPercent(0);
     }
   };
-
-  const handleAnalysisComplete = () => {
-    // This is now handled in handleAnalyze
-  };
-
-  const calculateTotalCashback = () => {
-    if (!walletStats) return 0;
-    return Math.round(walletStats.topRegrettedTokens.reduce((sum, t) => {
-      const range = calculateCashback(t.regretAmount);
-      const avg = range.includes('-') 
-        ? (parseInt(range.split('$')[1].split('-')[0].replace(/,/g, '')) + parseInt(range.split('-')[1].replace(/[,$+]/g, ''))) / 2
-        : parseInt(range.replace(/[,$+]/g, ''));
-      return sum + avg;
-    }, 0));
-  };
-
-  const handleClaimRewards = async () => {
-    setIsClaiming(true);
-    
-    // Simulate processing with visual feedback
-    await new Promise(resolve => setTimeout(resolve, 2500));
-    
-    setIsClaiming(false);
-    setHasClaimed(true);
-    
-    const totalCashback = calculateTotalCashback();
-    
-    toast({
-      title: "🎉 Cashback Claimed Successfully!",
-      description: (
-        <div className="mt-2 space-y-2">
-          <p className="text-2xl font-bold text-primary">${totalCashback.toLocaleString()} USD</p>
-          <p className="text-sm text-muted-foreground">Your cashback will be sent to your wallet in 2-5 minutes. Check your transaction history shortly!</p>
-        </div>
-      ),
-      duration: 10000,
-    });
-  };
-
-  // Prepare chart data
-  const pnlTimelineData = walletStats?.events.map((event, i) => ({
-    date: event.sellDate,
-    realized: event.realizedProfit,
-    unrealized: event.unrealizedProfit,
-    regret: event.regretAmount,
-  })) || [];
-
-  const tokenPerfData = walletStats ? generateTokenStats(walletStats.events) : [];
-
-  const pieData = walletStats?.topRegrettedTokens.map((token, i) => ({
-    name: token.symbol,
-    value: token.regretAmount,
-    color: `hsl(${142 + i * 30}, 76%, ${60 - i * 10}%)`,
-  })) || [];
-
-  const regretDistribution = walletStats?.events.map((event) => ({
-    token: event.tokenSymbol,
-    regret: event.regretAmount,
-    percent: event.regretPercent,
-  })) || [];
 
   // Unique coins traded (by mint or symbol as fallback)
   const coinsTraded = walletStats?.coinsTraded ?? (walletStats ? new Set(walletStats.events.map(e => e.tokenMint || e.tokenSymbol)).size : 0);
