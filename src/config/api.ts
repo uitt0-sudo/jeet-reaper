@@ -1,31 +1,22 @@
 /**
  * API Configuration for Solana Integration
  * 
- * This file contains all API endpoints and keys needed for the application.
- * 
- * Note: In a frontend-only app, API keys will be visible in the browser.
- * This is acceptable for free-tier services with rate limiting.
- * For production apps with sensitive keys, consider adding a backend proxy.
+ * This file contains public API endpoints only.
+ * All sensitive operations are handled server-side via API routes.
  */
 
-// Helius RPC endpoint - provides enhanced Solana transaction parsing
-export const SOLANA_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=f9e18339-2a25-473d-8e3c-be24602eb51f';
+// Public RPC URL - uses environment variable (no API key exposed)
+// For client-side calls that need RPC, use the /api/rpc proxy
+export const SOLANA_RPC_URL = '/api/rpc';
 
-// Extract Helius API key from RPC URL
-export function getHeliusApiKey(): string {
-  const match = SOLANA_RPC_URL.match(/api-key=([^&]+)/);
-  return match ? match[1] : '';
-}
-
-// Helius Enhanced Transactions API
-export const HELIUS_API_BASE = 'https://api.helius.xyz/v0';
+// Helius API base - all calls should go through server-side routes
+export const HELIUS_API_BASE = '/api/helius';
 
 // Jupiter Price API - free, no key needed
 export const JUPITER_PRICE_API = 'https://price.jup.ag/v4/price';
 
-// Optional: Birdeye for historical price data (recommended for production)
-// Sign up at https://birdeye.so/ for accurate historical prices
-export const BIRDEYE_API_KEY = ''; // Add your Birdeye API key here
+// Birdeye API (public endpoints)
+export const BIRDEYE_API_KEY = ''; // Not needed for public endpoints
 export const BIRDEYE_API_URL = 'https://public-api.birdeye.so';
 
 // Known DEX Program IDs on Solana
@@ -43,3 +34,13 @@ export const KNOWN_TOKENS = {
   USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
   USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
 };
+
+// Get Helius API key is now server-side only
+export function getHeliusApiKey(): string {
+  // This should only be called from server-side code
+  if (typeof window !== 'undefined') {
+    console.warn('getHeliusApiKey should not be called from client-side code');
+    return '';
+  }
+  return process.env.HELIUS_API_KEY ?? '';
+}
