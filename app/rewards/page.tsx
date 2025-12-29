@@ -11,7 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import {
   claimCashback,
   fetchTokenHoldings,
-  generateRandomReward,
   getRewardStatus,
   MINIMUM_HOLDING,
   syncWalletHolder,
@@ -31,7 +30,7 @@ export default function Rewards() {
   const [scanComplete, setScanComplete] = useState(false);
   const [tokenHoldings, setTokenHoldings] = useState<number | null>(null);
   const [rewardStatus, setRewardStatus] = useState<RewardStatus | null>(null);
-  const [isRandomRewardLoading, setIsRandomRewardLoading] = useState(false);
+  const [_isRandomRewardLoading, setIsRandomRewardLoading] = useState(false);
   const [isCashbackLoading, setIsCashbackLoading] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -84,56 +83,7 @@ export default function Rewards() {
     }
   };
 
-  const handleRandomReward = async () => {
-    const trimmedAddress = walletAddress.trim();
-    if (!trimmedAddress) {
-      return;
-    }
-
-    setIsRandomRewardLoading(true);
-
-    try {
-      const result = await generateRandomReward(trimmedAddress);
-
-      if (!result) {
-        const refreshedStatus = await getRewardStatus(trimmedAddress);
-        setRewardStatus(refreshedStatus);
-
-        toast({
-          title: "No random reward available",
-          description: "This wallet has already received its random reward.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setRewardStatus(result.status);
-      const updatedHoldings = result.status.holder?.holdings;
-      if (typeof updatedHoldings === "number") {
-        setTokenHoldings(updatedHoldings);
-      }
-
-      toast({
-        title: "Random Reward Sent! 🎁",
-        description: `You won ${result.amount.toFixed(
-          2
-        )} ${tokenSymbol}. It will be transferred to your wallet shortly.`,
-        duration: 5000,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to process random reward.";
-      toast({
-        title: "Random reward failed",
-        description: message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsRandomRewardLoading(false);
-    }
-  };
+  // handleRandomReward available if random reward feature is re-enabled
 
   const currentHoldings =
     typeof tokenHoldings === "number"
@@ -156,7 +106,7 @@ export default function Rewards() {
   });
   const minimumHoldingText = MINIMUM_HOLDING.toLocaleString();
 
-  const handleClaimRewards = async (currency: "SOL" | "USDC") => {
+  const handleClaimRewards = async (_currency: "SOL" | "USDC") => {
     const trimmedAddress = walletAddress.trim();
     if (!trimmedAddress || tokenHoldings === null) {
       return;

@@ -9,7 +9,7 @@
  */
 
 import { Connection, PublicKey, ParsedTransactionWithMeta } from '@solana/web3.js';
-import { DEX_PROGRAMS, KNOWN_TOKENS, HELIUS_API_BASE } from '@/config/api';
+import { DEX_PROGRAMS, KNOWN_TOKENS } from '@/config/api';
 
 // Use public RPC for basic operations - API key is handled server-side
 const SOLANA_RPC_URL = 'https://api.mainnet-beta.solana.com';
@@ -128,120 +128,7 @@ class HeliusApiError extends Error {
   }
 }
 
-interface HeliusPageOptions {
-  walletAddress: string;
-  apiKey: string;
-  before?: string;
-  limit: number;
-  onProgress?: ProgressCallback;
-}
-
-async function parseHeliusErrorResponse(response: Response): Promise<{ message: string; details?: unknown }> {
-  let text: string | undefined;
-  let body: unknown;
-
-  try {
-    text = await response.text();
-    if (text) {
-      try {
-        body = JSON.parse(text);
-      } catch {
-        body = text;
-      }
-    }
-  } catch (error) {
-    console.warn('Failed to read Helius error response body:', error);
-  }
-
-  let message = `Helius request failed with status ${response.status}`;
-
-  if (typeof body === 'string' && body.trim().length > 0) {
-    message = body;
-  } else if (body && typeof body === 'object') {
-    const record = body as Record<string, unknown>;
-    const candidates = [record.message, record.error, record.errorMessage];
-    const found = candidates.find((value): value is string => typeof value === 'string' && value.trim().length > 0);
-    if (found) {
-      message = found;
-    }
-  }
-
-  return {
-    message,
-    details: body,
-  };
-}
-
-async function _fetchHeliusTransactionsPage({
-  walletAddress,
-  apiKey,
-  before,
-  limit,
-  onProgress,
-}: HeliusPageOptions): Promise<any[]> {
-  const url = new URL(`${HELIUS_API_BASE}/addresses/${walletAddress}/transactions`);
-  url.searchParams.set('api-key', apiKey);
-  url.searchParams.set('limit', limit.toString());
-  if (before) {
-    url.searchParams.set('before', before);
-  }
-
-  return retryWithBackoff(
-    async () => {
-      let response: Response;
-      try {
-        response = await fetch(url.toString(), {
-          method: 'GET',
-          headers: {
-            accept: 'application/json',
-          },
-        });
-      } catch (networkError) {
-        throw new HeliusApiError(0, 'Failed to reach Helius API', networkError);
-      }
-
-      if (!response.ok) {
-        const { message, details } = await parseHeliusErrorResponse(response);
-        throw new HeliusApiError(response.status, message, details);
-      }
-
-      const data = await response.json();
-      if (!Array.isArray(data)) {
-        throw new HeliusApiError(
-          500,
-          'Helius response format unexpected (expected array of transactions)',
-          data
-        );
-      }
-
-      return data;
-    },
-    {
-      maxRetries: 4,
-      baseDelay: 1500,
-      onProgress,
-      isRetryable: (error) => {
-        if (error instanceof HeliusApiError) {
-          if (error.status === 400 || error.status === 401 || error.status === 403) return false;
-          if (error.status === 0) return true; // network failure
-          if (error.status === 429) return true;
-          if (error.status >= 500 || error.status === 408) return true;
-          return false;
-        }
-        return defaultRetryable(error);
-      },
-      onRetry: (_attempt, delay, error, reason) => {
-        if (error instanceof HeliusApiError && error.status === 429) {
-          const seconds = Math.max(1, Math.round(delay / 1000));
-          onProgress?.(`Helius rate limited, retrying in ${seconds}s...`, 0);
-        } else {
-          const seconds = Math.max(1, Math.round(delay / 1000));
-          onProgress?.(`Retrying Helius request in ${seconds}s due to ${reason}`, 0);
-        }
-      },
-    }
-  );
-}
+// Helius API interactions now use server-side proxy routes
 
 /**
  * Validate a Solana address
@@ -988,7 +875,7 @@ export async function parseSwapsWithEnhancedAPI(
   } else {
     enhancedError = enhancedResult.reason;
     console.warn('Helius Enhanced parsing failed:', enhancedError);
-    onProgress?.('Helius Enhanced API unavailable. Continuing with RPC data…', undefined);
+    onProgress?.('Helius Enhanced API unavailable. Continuing with RPC data…', 0);
   }
 
   if (rpcResult.status === 'fulfilled') {
@@ -996,7 +883,7 @@ export async function parseSwapsWithEnhancedAPI(
   } else {
     rpcError = rpcResult.reason;
     console.warn('RPC fallback parsing failed:', rpcError);
-    onProgress?.('Solana RPC requests failed. Attempting to continue with partial Helius data…', undefined);
+    onProgress?.('Solana RPC requests failed. Attempting to continue with partial Helius data…', 0);
   }
 
   if (enhancedSwaps.length === 0 && rpcSwaps.length === 0) {

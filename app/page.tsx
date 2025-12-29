@@ -6,30 +6,11 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Zap, Shield, TrendingDown, BarChart3, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { SplashScreen } from "@/components/SplashScreen";
-import { PasswordProtection } from "@/components/PasswordProtection";
 import Image from "next/image";
 
 const Landing = () => {
   const router = useRouter();
   const [showSplash, setShowSplash] = useState(true);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [targetPath, setTargetPath] = useState<string>("");
-
-  const handleProtectedNavigation = (path: string) => {
-    const hasAccess = sessionStorage.getItem("paperhands_access") === "true";
-    
-    if (hasAccess) {
-      router.push(path as any);
-    } else {
-      setTargetPath(path);
-      setShowPasswordModal(true);
-    }
-  };
-
-  const handlePasswordSuccess = () => {
-    setShowPasswordModal(false);
-    router.push(targetPath as any);
-  };
 
   if (showSplash) {
     return <SplashScreen onComplete={() => setShowSplash(false)} />;
@@ -101,7 +82,7 @@ const Landing = () => {
             <Button
               size="lg"
               className="group relative overflow-hidden bg-gradient-to-r from-primary to-accent px-10 py-6 text-xl font-bold shadow-[var(--shadow-glow-strong)] transition-all hover:scale-105 hover:shadow-[var(--shadow-glow-strong)]"
-              onClick={() => handleProtectedNavigation("/dashboard")}
+              onClick={() => router.push("/dashboard")}
             >
               <span className="relative z-10 flex items-center">
                 Start Analyzing
@@ -114,7 +95,7 @@ const Landing = () => {
               size="lg"
               variant="outline"
               className="border-2 border-primary px-8 py-6 text-lg font-semibold text-primary transition-all hover:bg-primary hover:text-primary-foreground hover:shadow-[var(--shadow-glow)]"
-              onClick={() => handleProtectedNavigation("/leaderboard")}
+              onClick={() => router.push("/leaderboard")}
             >
               Hall of Shame
             </Button>
@@ -204,12 +185,6 @@ const Landing = () => {
           transition={{ duration: 20, repeat: Infinity }}
         />
       </div>
-
-      <PasswordProtection
-        isOpen={showPasswordModal}
-        onClose={() => setShowPasswordModal(false)}
-        onSuccess={handlePasswordSuccess}
-      />
     </div>
   );
 };
