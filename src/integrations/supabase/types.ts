@@ -101,6 +101,45 @@ export type Database = {
         }
         Relationships: []
       }
+      scan_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          days_back: number | null
+          error: string | null
+          id: string
+          queue_position: number | null
+          result: Json | null
+          started_at: string | null
+          status: string
+          wallet_address: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          days_back?: number | null
+          error?: string | null
+          id?: string
+          queue_position?: number | null
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          wallet_address: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          days_back?: number | null
+          error?: string | null
+          id?: string
+          queue_position?: number | null
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
       token_metadata: {
         Row: {
           logo: string | null
