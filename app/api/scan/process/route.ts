@@ -61,15 +61,39 @@ export async function POST(_request: NextRequest) {
       nextJob.days_back ?? 30
     );
 
+    const resultJson = JSON.parse(JSON.stringify(result));
+
     // Mark as complete
     await supabase
       .from('scan_jobs')
       .update({
         status: 'complete',
-        result: JSON.parse(JSON.stringify(result)),
+        result: resultJson,
         completed_at: new Date().toISOString(),
       })
       .eq('id', nextJob.id);
+
+    // ========== CACHE THE RESULT ==========
+    // Upsert into wallet_analyses with 48-hour expiry
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 48);
+
+    await supabase
+      .from('wallet_analyses')
+      .upsert({
+        wallet_address: nextJob.wallet_address,
+        total_regret: result.totalRegret ?? 0,
+        total_events: result.totalEvents ?? 0,
+        coins_traded: result.coinsTraded ?? 0,
+        win_rate: result.winRate ?? 0,
+        avg_hold_time: result.avgHoldTime ?? 0,
+        top_regretted_tokens: result.topRegrettedTokens ?? [],
+        analysis_date_range: result.analysisDateRange ?? null,
+        analyzed_at: new Date().toISOString(),
+        expires_at: expiresAt.toISOString(),
+      }, {
+        onConflict: 'wallet_address',
+      });
 
     return NextResponse.json({
       message: 'Job completed',
