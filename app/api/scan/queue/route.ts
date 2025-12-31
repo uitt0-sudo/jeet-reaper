@@ -17,30 +17,13 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerSupabaseClient();
 
-    // Count currently processing jobs
-    const { count: processingCount } = await supabase
-      .from('scan_jobs')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'processing');
-
-    // Count queued jobs for position
-    const { count: queuedCount } = await supabase
-      .from('scan_jobs')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'queued');
-
-    const canStartImmediately = (processingCount ?? 0) < MAX_CONCURRENT;
-    const queuePosition = canStartImmediately ? 0 : (queuedCount ?? 0) + 1;
-
-    // Insert the job
+    // Always insert as queued first
     const { data: job, error } = await supabase
       .from('scan_jobs')
       .insert({
         wallet_address: walletAddress,
         days_back: daysBack,
-        status: canStartImmediately ? 'processing' : 'queued',
-        queue_position: queuePosition,
-        started_at: canStartImmediately ? new Date().toISOString() : null,
+        status: 'queued',
       })
       .select()
       .single();
@@ -53,11 +36,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Attempt to atomically claim the job (will fail if at capacity)
+    const { data: claimed, error: claimError } = await supabase
+      .rpc('try_claim_job', { job_id: job.id });
+
+    if (claimError) {
+      console.error('Failed to claim job:', claimError);
+    }
+
+    // Get queue position if not claimed
+    let queuePosition = 0;
+    if (!claimed) {
+      const { count } = await supabase
+        .from('scan_jobs')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'queued')
+        .lt('created_at', job.created_at);
+      
+      queuePosition = (count ?? 0) + 1;
+    }
+
     return NextResponse.json({
       jobId: job.id,
-      status: job.status,
-      queuePosition: job.queue_position,
-      message: canStartImmediately 
+      status: claimed ? 'processing' : 'queued',
+      queuePosition: claimed ? 0 : queuePosition,
+      message: claimed 
         ? 'Scan started immediately' 
         : `Queued at position ${queuePosition}`,
     });

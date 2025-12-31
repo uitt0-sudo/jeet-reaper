@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/integrations/supabase/server';
 import { analyzePaperhands } from '@/services/paperhands';
 
-/**
- * Run a specific job by ID.
- * Called internally to process a job that was marked as 'processing'.
- */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -20,12 +16,12 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerSupabaseClient();
 
-    // Get the job
+    // Fetch the job first to check its current status
     const { data: job, error: fetchError } = await supabase
       .from('scan_jobs')
       .select('*')
       .eq('id', jobId)
-      .single();
+      .maybeSingle();
 
     if (fetchError || !job) {
       return NextResponse.json(
@@ -34,32 +30,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // If already complete or failed, return current status
     if (job.status === 'complete') {
       return NextResponse.json({
-        message: 'Job already complete',
+        status: 'complete',
         result: job.result,
       });
     }
 
     if (job.status === 'failed') {
+      return NextResponse.json({
+        status: 'failed',
+        error: job.error,
+      });
+    }
+
+    // If already processing, return current status
+    if (job.status === 'processing') {
+      return NextResponse.json({
+        status: 'processing',
+        message: 'Job is already being processed',
+      });
+    }
+
+    // HARD GUARD: Use atomic RPC to claim the job
+    // This will fail if already at 5 concurrent processing jobs
+    const { data: claimed, error: claimError } = await supabase
+      .rpc('try_claim_job', { job_id: jobId });
+
+    if (claimError) {
+      console.error('Failed to claim job:', claimError);
       return NextResponse.json(
-        { error: 'Job already failed', details: job.error },
-        { status: 400 }
+        { error: 'Failed to claim job' },
+        { status: 500 }
       );
     }
 
-    // Mark as processing if not already
-    if (job.status !== 'processing') {
-      await supabase
-        .from('scan_jobs')
-        .update({
-          status: 'processing',
-          started_at: new Date().toISOString(),
-        })
-        .eq('id', jobId);
+    if (!claimed) {
+      // Could not claim - either at capacity or job no longer queued
+      return NextResponse.json({
+        status: 'queued',
+        message: 'At maximum capacity (5 concurrent scans). Job remains queued.',
+      });
     }
 
-    // Run the analysis
+    // Job successfully claimed - run the analysis
     try {
       const result = await analyzePaperhands(
         job.wallet_address,
@@ -77,13 +92,13 @@ export async function POST(request: NextRequest) {
         .eq('id', jobId);
 
       return NextResponse.json({
-        message: 'Job completed',
-        jobId: job.id,
+        status: 'complete',
         result,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
+      // Mark as failed
       await supabase
         .from('scan_jobs')
         .update({
@@ -93,10 +108,10 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', jobId);
 
-      return NextResponse.json(
-        { error: 'Analysis failed', details: errorMessage },
-        { status: 500 }
-      );
+      return NextResponse.json({
+        status: 'failed',
+        error: errorMessage,
+      });
     }
   } catch (error) {
     console.error('Run job error:', error);
