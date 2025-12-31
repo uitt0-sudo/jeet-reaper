@@ -6,26 +6,10 @@ const MAX_CONCURRENT = 5;
 
 /**
  * Process the next job in the queue.
- * This can be called:
- * 1. After a job completes to process the next one
- * 2. By a cron job to ensure queue keeps moving
- * 3. By the queue endpoint when there's capacity
+ * Uses atomic try_claim_job to ensure HARD concurrency limit of 5.
  */
 export async function POST(_request: NextRequest) {
   const supabase = createServerSupabaseClient();
-
-  // Check if we have capacity
-  const { count: processingCount } = await supabase
-    .from('scan_jobs')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'processing');
-
-  if ((processingCount ?? 0) >= MAX_CONCURRENT) {
-    return NextResponse.json({
-      message: 'At max capacity',
-      processing: processingCount,
-    });
-  }
 
   // Get the next queued job (oldest first)
   const { data: nextJob, error: fetchError } = await supabase
@@ -34,24 +18,43 @@ export async function POST(_request: NextRequest) {
     .eq('status', 'queued')
     .order('created_at', { ascending: true })
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  if (fetchError || !nextJob) {
+  if (fetchError) {
+    console.error('Failed to fetch next job:', fetchError);
+    return NextResponse.json({
+      message: 'Failed to fetch queue',
+      error: fetchError.message,
+    }, { status: 500 });
+  }
+
+  if (!nextJob) {
     return NextResponse.json({
       message: 'No jobs in queue',
     });
   }
 
-  // Mark as processing
-  await supabase
-    .from('scan_jobs')
-    .update({
-      status: 'processing',
-      started_at: new Date().toISOString(),
-    })
-    .eq('id', nextJob.id);
+  // HARD GUARD: Use atomic RPC to claim the job
+  // This will fail if already at 5 concurrent processing jobs
+  const { data: claimed, error: claimError } = await supabase
+    .rpc('try_claim_job', { job_id: nextJob.id });
 
-  // Run the analysis
+  if (claimError) {
+    console.error('Failed to claim job:', claimError);
+    return NextResponse.json({
+      message: 'Failed to claim job',
+      error: claimError.message,
+    }, { status: 500 });
+  }
+
+  if (!claimed) {
+    return NextResponse.json({
+      message: 'At max capacity (5 concurrent). Job remains queued.',
+      jobId: nextJob.id,
+    });
+  }
+
+  // Job claimed successfully - run the analysis
   try {
     const result = await analyzePaperhands(
       nextJob.wallet_address,
@@ -67,9 +70,6 @@ export async function POST(_request: NextRequest) {
         completed_at: new Date().toISOString(),
       })
       .eq('id', nextJob.id);
-
-    // Trigger processing of next job in queue
-    await processNextInQueue(supabase);
 
     return NextResponse.json({
       message: 'Job completed',
@@ -87,44 +87,11 @@ export async function POST(_request: NextRequest) {
       })
       .eq('id', nextJob.id);
 
-    // Still try to process next job
-    await processNextInQueue(supabase);
-
     return NextResponse.json({
       message: 'Job failed',
       jobId: nextJob.id,
       error: errorMessage,
     });
-  }
-}
-
-async function processNextInQueue(supabase: ReturnType<typeof createServerSupabaseClient>) {
-  const { count: processingCount } = await supabase
-    .from('scan_jobs')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'processing');
-
-  if ((processingCount ?? 0) >= MAX_CONCURRENT) {
-    return;
-  }
-
-  const { data: nextJob } = await supabase
-    .from('scan_jobs')
-    .select('*')
-    .eq('status', 'queued')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .single();
-
-  if (nextJob) {
-    // Mark as processing - actual processing will happen on next call
-    await supabase
-      .from('scan_jobs')
-      .update({
-        status: 'processing',
-        started_at: new Date().toISOString(),
-      })
-      .eq('id', nextJob.id);
   }
 }
 
@@ -138,8 +105,11 @@ export async function GET() {
     .in('status', ['queued', 'processing'])
     .order('created_at', { ascending: true });
 
+  const processing = jobs?.filter(j => j.status === 'processing').length ?? 0;
+
   return NextResponse.json({
     maxConcurrent: MAX_CONCURRENT,
+    currentlyProcessing: processing,
     jobs: jobs ?? [],
   });
 }
