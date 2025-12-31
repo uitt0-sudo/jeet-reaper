@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/integrations/supabase/server';
 
 const MAX_CONCURRENT = 5;
 
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -17,7 +18,39 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerSupabaseClient();
 
-    // Always insert as queued first
+    // ========== CACHE CHECK ==========
+    // Check for valid cached result before queueing
+    const { data: cached } = await supabase
+      .from('wallet_analyses')
+      .select('*')
+      .eq('wallet_address', walletAddress)
+      .gt('expires_at', new Date().toISOString())
+      .order('analyzed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (cached) {
+      // Return cached result immediately - skip queue entirely
+      return NextResponse.json({
+        jobId: null,
+        status: 'cached',
+        cached: true,
+        cachedUntil: cached.expires_at,
+        result: {
+          totalRegret: cached.total_regret,
+          totalEvents: cached.total_events,
+          coinsTraded: cached.coins_traded,
+          winRate: cached.win_rate,
+          avgHoldTime: cached.avg_hold_time,
+          topRegrettedTokens: cached.top_regretted_tokens,
+          analysisDateRange: cached.analysis_date_range,
+          analyzedAt: cached.analyzed_at,
+        },
+      });
+    }
+
+    // ========== NO CACHE - PROCEED WITH QUEUE ==========
+    // Insert as queued
     const { data: job, error } = await supabase
       .from('scan_jobs')
       .insert({
