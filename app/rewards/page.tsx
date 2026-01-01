@@ -1,5 +1,8 @@
 "use client";
 
+// Feature flag: set to true to enable scanning, false to disable
+const SCAN_ENABLED = false;
+
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Navigation } from "@/components/Navigation";
@@ -244,10 +247,15 @@ export default function Rewards() {
                       </div>
                       <Button 
                         type="submit" 
-                        className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-primary to-primary-light hover:opacity-90 transition-all shadow-lg shadow-primary/20"
-                        disabled={isScanning || !walletAddress}
+                        className={`w-full h-14 text-lg font-semibold bg-gradient-to-r from-primary to-primary-light transition-all shadow-lg shadow-primary/20 ${
+                          SCAN_ENABLED ? 'hover:opacity-90' : 'opacity-50 cursor-not-allowed'
+                        }`}
+                        disabled={!SCAN_ENABLED || isScanning || !walletAddress}
+                        onClick={!SCAN_ENABLED ? (e) => e.preventDefault() : undefined}
                       >
-                        {isScanning ? (
+                        {!SCAN_ENABLED ? (
+                          "Scanning temporarily disabled"
+                        ) : isScanning ? (
                           <>
                             <Loader2 className="w-6 h-6 mr-2 animate-spin" />
                             Scanning Wallet...
