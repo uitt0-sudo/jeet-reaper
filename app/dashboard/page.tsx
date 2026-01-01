@@ -1,5 +1,8 @@
 "use client";
 
+// Feature flag: set to true to enable analysis, false to disable
+const ANALYZE_ENABLED = false;
+
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -251,12 +254,14 @@ const Dashboard = () => {
                   className="flex-1 border-primary/30 bg-background/80 text-lg backdrop-blur-sm"
                 />
                 <Button
-                  onClick={handleAnalyze}
-                  disabled={isAnalyzing}
-                  className="bg-gradient-to-r from-primary to-accent px-10 font-bold shadow-[var(--shadow-glow)] transition-all hover:scale-105"
+                  onClick={ANALYZE_ENABLED ? handleAnalyze : undefined}
+                  disabled={!ANALYZE_ENABLED || isAnalyzing}
+                  className={`bg-gradient-to-r from-primary to-accent px-10 font-bold shadow-[var(--shadow-glow)] transition-all ${
+                    ANALYZE_ENABLED ? 'hover:scale-105' : 'opacity-50 cursor-not-allowed'
+                  }`}
                 >
                   <Search className="mr-2 h-5 w-5" />
-                  Analyze
+                  {ANALYZE_ENABLED ? 'Analyze' : 'Analysis temporarily disabled'}
                 </Button>
               </div>
             </div>
