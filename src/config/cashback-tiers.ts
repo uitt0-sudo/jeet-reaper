@@ -31,13 +31,13 @@ export const CASHBACK_TIERS: CashbackTier[] = [
     label: "Holding 5M - 10M tokens",
     min: 5_000_000,
     max: 10_000_000,
-    reward: { min: 0.388, max: 1.500 },
+    reward: { min: 0.388, max: .933 },
   },
   {
     label: "Holding 10M+ tokens",
     min: 10_000_000,
     max: Number.POSITIVE_INFINITY,
-    reward: { min: 0.0537, max: 0.0811 },
+    reward: { min: 0.933, max: 1.855 },
   },
 ];
 
