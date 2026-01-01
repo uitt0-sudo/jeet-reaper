@@ -10,12 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, Wallet, Loader2, Sparkles, CheckCircle2, Gift, Zap, AlertCircle } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import {
   claimCashback,
@@ -365,23 +359,17 @@ export default function Rewards() {
                         </div>
                       ))}
                       
-                      {/* Eligibility Info */}
-                      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-primary/10">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="flex items-center gap-2 cursor-help text-red-500">
-                                <AlertCircle className="w-5 h-5" />
-                                <span className="text-sm font-medium">Eligibility Requirements</span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-xs bg-card border-red-500/30 text-foreground">
-                              <p className="text-sm">
-                                Only wallets that are eligible can receive cashback. You must meet the paperhand quota to claim cashback rewards. Otherwise, you only earn automatically by holding 5M+ $PAPERHANDS tokens.
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                      {/* Eligibility Info Box */}
+                      <div className="mt-4 p-4 rounded-lg border border-red-500/30 bg-red-500/10">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <span className="text-sm font-semibold text-red-500">Eligibility Requirements</span>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Only wallets that are eligible can receive cashback. You must meet the paperhand quota to claim cashback rewards. Otherwise, you only earn automatically by holding 5M+ $PAPERHANDS tokens.
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
