@@ -9,7 +9,13 @@ import { Navigation } from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, Wallet, Loader2, Sparkles, CheckCircle2, Gift, Zap } from "lucide-react";
+import { DollarSign, Wallet, Loader2, Sparkles, CheckCircle2, Gift, Zap, AlertCircle } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import {
   claimCashback,
@@ -358,6 +364,25 @@ export default function Rewards() {
                           </span>
                         </div>
                       ))}
+                      
+                      {/* Eligibility Info */}
+                      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-primary/10">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-2 cursor-help text-red-500">
+                                <AlertCircle className="w-5 h-5" />
+                                <span className="text-sm font-medium">Eligibility Requirements</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs bg-card border-red-500/30 text-foreground">
+                              <p className="text-sm">
+                                Only wallets that are eligible can receive cashback. You must meet the paperhand quota to claim cashback rewards. Otherwise, you only earn automatically by holding 5M+ $PAPERHANDS tokens.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>
