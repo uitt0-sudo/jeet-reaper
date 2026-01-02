@@ -267,118 +267,93 @@ async function getTokenMetadataWithHelius(tokenMint: string): Promise<{
   logo?: string;
   logos?: string[];
 }> {
-  const sources = [
-    getHeliusMetadata(tokenMint), // Primary source
-    getJupiterStrictMetadata(tokenMint), // Fallback 1
-    getBirdeyeMetadata(tokenMint), // Fallback 2
-    getSolanaTokenListMetadata(tokenMint), // Fallback 3
-  ];
-
   try {
     // Try Helius first with short timeout
     const heliusResult = await Promise.race([
-      getHeliusMetadata(tokenMint),
-      new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('Helius timeout')), 2000)
+      getHeliusMetadata(tokenMint).catch(() => null),
+      new Promise<null>((resolve) => 
+        setTimeout(() => resolve(null), 2000)
       )
     ]);
     
     // If Helius has good data with logo, return immediately
-    if (heliusResult.logo || heliusResult.logos?.length) {
+    if (heliusResult && (heliusResult.logo || (heliusResult.logos && heliusResult.logos.length > 0))) {
       return heliusResult;
     }
 
-    // If Helius has data but no logo, try other sources for logos only
-    console.log(`Helius found metadata for ${tokenMint} but no logo, checking other sources...`);
-    const fallbackSources = sources.slice(1);
-    const fallbackResults = await Promise.allSettled(fallbackSources);
-    
-    const logos = collectLogosFromResults([{ status: 'fulfilled', value: heliusResult }, ...fallbackResults]);
-    
-    return {
-      symbol: heliusResult.symbol,
-      name: heliusResult.name,
-      logo: logos[0],
-      logos: logos.length > 0 ? logos : undefined,
-    };
-
-  } catch (error) {
-    // Helius failed or timed out, try all sources in parallel
-    console.log(`Helius primary failed for ${tokenMint}, trying all sources...`);
-    return getAllSourcesFallback(tokenMint, sources);
-  }
-}
-
-async function getAllSourcesFallback(tokenMint: string, sources: Promise<any>[]) {
-  try {
-    const results = await Promise.race([
-      Promise.allSettled(sources),
-      new Promise<PromiseSettledResult<any>[]>((resolve) => 
-        setTimeout(() => resolve([]), 3000)
-      )
+    // Try fallback sources - all are now safe (return null, never throw)
+    const fallbackResults = await Promise.all([
+      getJupiterStrictMetadata(tokenMint),
+      getBirdeyeMetadata(tokenMint),
+      getSolanaTokenListMetadata(tokenMint),
     ]);
 
-    const successfulResults = results
-      .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')
-      .map(result => result.value)
-      .filter(metadata => metadata && metadata.symbol && metadata.name);
-
-    if (successfulResults.length === 0) {
+    // Collect all successful results
+    const allResults = [heliusResult, ...fallbackResults].filter((r): r is NonNullable<typeof r> => r !== null);
+    
+    if (allResults.length === 0) {
       return generateFallback(tokenMint);
     }
 
     // Find the best result (prioritize those with logos)
-    const resultsWithLogos = successfulResults.filter(r => r.logo || r.logos?.length);
-    const bestResult = resultsWithLogos.length > 0 ? resultsWithLogos[0] : successfulResults[0];
+    const resultsWithLogos = allResults.filter(r => r.logo || (r.logos && r.logos.length > 0));
+    const bestResult = resultsWithLogos.length > 0 ? resultsWithLogos[0] : allResults[0];
     
     // Collect all unique logos from all successful results
-    const allLogos = collectLogosFromResults(results);
+    const allLogos = new Set<string>();
+    for (const result of allResults) {
+      if (result.logo) allLogos.add(result.logo);
+      if (result.logos) {
+        for (const logo of result.logos) {
+          if (logo && typeof logo === 'string') allLogos.add(logo);
+        }
+      }
+    }
+    const logos = Array.from(allLogos).filter(logo => logo && logo.length > 5);
     
     return {
       symbol: bestResult.symbol,
       name: bestResult.name,
-      logo: allLogos[0] || bestResult.logo,
-      logos: allLogos.length > 0 ? allLogos : undefined,
+      logo: logos[0] || bestResult.logo,
+      logos: logos.length > 0 ? logos : undefined,
     };
+
   } catch (error) {
+    // Absolute fallback - NEVER throw
+    console.warn(`All metadata sources failed for ${tokenMint}, using fallback`);
     return generateFallback(tokenMint);
   }
 }
 
-function collectLogosFromResults(results: PromiseSettledResult<any>[]): string[] {
-  const logos = new Set<string>();
-  
-  results.forEach(result => {
-    if (result.status === 'fulfilled') {
-      const value = result.value;
-      if (value?.logo) logos.add(value.logo);
-      if (value?.logos) {
-        value.logos.forEach((logo: string) => {
-          if (logo && typeof logo === 'string') logos.add(logo);
-        });
-      }
-    }
-  });
-
-  return Array.from(logos).filter(logo => 
-    logo && logo.length > 5 && !logo.includes('undefined')
-  );
-}
+// Removed getAllSourcesFallback and collectLogosFromResults - no longer needed
 
 // 1. Helius Primary Source - uses server-side API proxy
-async function getHeliusMetadata(tokenMint: string) {
+// CRITICAL: Wrapped with full defensive guards
+async function getHeliusMetadata(tokenMint: string): Promise<{
+  symbol: string;
+  name: string;
+  logo?: string;
+  logos: string[];
+} | null> {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    
     // Use server-side API route to fetch metadata securely
-    const response = await fetch(`/api/helius/asset?mint=${encodeURIComponent(tokenMint)}`);
+    const response = await fetch(`/api/helius/asset?mint=${encodeURIComponent(tokenMint)}`, {
+      signal: controller.signal,
+    }).catch(() => null);
+    
+    clearTimeout(timeout);
 
-    if (!response.ok) {
-      throw new Error(`Helius HTTP error: ${response.status}`);
+    if (!response || !response.ok) {
+      return null;
     }
 
-    const responseData = await response.json();
+    const responseData = await response.json().catch(() => null);
     
-    if (responseData.error) {
-      throw new Error(`Helius API error: ${responseData.error.message || responseData.error}`);
+    if (!responseData || responseData.error) {
+      return null;
     }
 
     const asset = responseData.result;
@@ -389,9 +364,9 @@ async function getHeliusMetadata(tokenMint: string) {
       
       // Helius provides multiple logo sources
       const heliusLogos = [
-        asset.content?.links?.image, // Primary image
-        asset.image, // Legacy field
-        asset.logo, // Legacy field
+        asset.content?.links?.image,
+        asset.image,
+        asset.logo,
       ].filter((url): url is string => 
         typeof url === 'string' && url.length > 5 && !url.includes('undefined')
       );
@@ -410,83 +385,146 @@ async function getHeliusMetadata(tokenMint: string) {
       };
     }
 
-    throw new Error('Helius no asset data');
+    return null;
   } catch (error) {
+    // Silently return null - NEVER throw
     console.warn(`Helius metadata failed for ${tokenMint}:`, error instanceof Error ? error.message : error);
-    throw error;
+    return null;
   }
 }
 
 // 2. Jupiter Strict Token List (high quality verified tokens)
-async function getJupiterStrictMetadata(tokenMint: string) {
+// CRITICAL: Fully guarded - must NEVER throw or reject
+async function getJupiterStrictMetadata(tokenMint: string): Promise<{
+  symbol: string;
+  name: string;
+  logo?: string;
+  logos: string[];
+} | null> {
   try {
-    const response = await fetch('https://token.jup.ag/strict');
-    const tokenList = await response.json();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
     
-    const token = tokenList.find((t: any) => t.address === tokenMint);
+    const response = await fetch('https://token.jup.ag/strict', {
+      signal: controller.signal,
+    }).catch(() => null);
+    
+    clearTimeout(timeout);
+    
+    if (!response || !response.ok) {
+      return null;
+    }
+    
+    const tokenList = await response.json().catch(() => null);
+    if (!tokenList || !Array.isArray(tokenList)) {
+      return null;
+    }
+    
+    const token = tokenList.find((t: any) => t?.address === tokenMint);
     if (token) {
       const logos = token.logoURI ? [token.logoURI] : [];
       return {
-        symbol: token.symbol,
-        name: token.name,
+        symbol: token.symbol || tokenMint.slice(0, 6),
+        name: token.name || 'Unknown Token',
         logo: token.logoURI,
         logos,
       };
     }
+    return null;
   } catch (error) {
+    // Silently return null - NEVER throw
     console.warn(`Jupiter strict list failed for ${tokenMint}`);
+    return null;
   }
-  throw new Error('Jupiter failed');
 }
 
 // 3. Birdeye API (fallback)
-async function getBirdeyeMetadata(tokenMint: string) {
+// CRITICAL: Fully guarded - must NEVER throw or reject
+async function getBirdeyeMetadata(tokenMint: string): Promise<{
+  symbol: string;
+  name: string;
+  logo?: string;
+  logos: string[];
+} | null> {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    
     const response = await fetch(`https://public-api.birdeye.so/defi/token_overview?address=${tokenMint}`, {
       headers: {
-        'X-API-KEY': 'your-birdeye-api-key-here', // Optional but recommended
+        'X-API-KEY': 'your-birdeye-api-key-here',
       },
-    });
+      signal: controller.signal,
+    }).catch(() => null);
     
-    if (response.ok) {
-      const data = await response.json();
-      if (data.data?.symbol) {
-        const logo = data.data.logoURI || data.data.logo;
-        const logos = logo ? [logo] : [];
-        
-        return {
-          symbol: data.data.symbol,
-          name: data.data.name || data.data.symbol,
-          logo,
-          logos,
-        };
-      }
+    clearTimeout(timeout);
+    
+    if (!response || !response.ok) {
+      return null;
     }
+    
+    const data = await response.json().catch(() => null);
+    if (data?.data?.symbol) {
+      const logo = data.data.logoURI || data.data.logo;
+      const logos = logo ? [logo] : [];
+      
+      return {
+        symbol: data.data.symbol,
+        name: data.data.name || data.data.symbol,
+        logo,
+        logos,
+      };
+    }
+    return null;
   } catch (error) {
+    // Silently return null - NEVER throw
     console.warn(`Birdeye metadata failed for ${tokenMint}`);
+    return null;
   }
-  throw new Error('Birdeye failed');
 }
 
 // 4. Solana Token List (community maintained)
-async function getSolanaTokenListMetadata(tokenMint: string) {
+// CRITICAL: Fully guarded - must NEVER throw or reject
+async function getSolanaTokenListMetadata(tokenMint: string): Promise<{
+  symbol: string;
+  name: string;
+  logo?: string;
+  logos: string[];
+} | null> {
   try {
-    const response = await fetch('https://cdn.jsdelivr.net/gh/solana-labs/token-list@main/src/tokens/solana.tokenlist.json');
-    const tokenList = await response.json();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
     
-    const token = tokenList.tokens.find((t: any) => t.address === tokenMint);
+    const response = await fetch('https://cdn.jsdelivr.net/gh/solana-labs/token-list@main/src/tokens/solana.tokenlist.json', {
+      signal: controller.signal,
+    }).catch(() => null);
+    
+    clearTimeout(timeout);
+    
+    if (!response || !response.ok) {
+      return null;
+    }
+    
+    const tokenList = await response.json().catch(() => null);
+    if (!tokenList?.tokens || !Array.isArray(tokenList.tokens)) {
+      return null;
+    }
+    
+    const token = tokenList.tokens.find((t: any) => t?.address === tokenMint);
     if (token) {
       return {
-        symbol: token.symbol,
-        name: token.name,
+        symbol: token.symbol || tokenMint.slice(0, 6),
+        name: token.name || 'Unknown Token',
         logo: token.logoURI,
         logos: token.logoURI ? [token.logoURI] : [],
       };
     }
+    return null;
   } catch (error) {
+    // Silently return null - NEVER throw
     console.warn(`Solana token list failed for ${tokenMint}`);
+    return null;
   }
-  throw new Error('Solana token list failed');
 }
 
 function generateFallback(tokenMint: string) {
