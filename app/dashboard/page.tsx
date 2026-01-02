@@ -1,7 +1,7 @@
 "use client";
 
 // Feature flag: set to true to enable analysis, false to disable
-const ANALYZE_ENABLED = false;
+const ANALYZE_ENABLED = true;
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
