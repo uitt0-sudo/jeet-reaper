@@ -6,7 +6,7 @@
  */
 
 import { 
-  parseSwapsWithEnhancedAPI,
+  parseSwapsIncrementally,
   getCurrentPriceOnly,
   fetchTokenMarketCap,
   isValidSolanaAddress,
@@ -37,8 +37,22 @@ interface TradePosition {
   }>;
 }
 
+// Shared state for incremental analysis
+interface IncrementalAnalysisState {
+  positions: Map<string, TradePosition>;
+  events: PaperhandsEvent[];
+  processedMints: Set<string>;
+  lastStats: WalletStats | null;
+  swapsProcessed: number;
+  isPartial: boolean;
+}
+
+// SCAN_TIMEOUT for incremental analysis (90 seconds)
+const INCREMENTAL_TIMEOUT_MS = 90000;
+
 /**
  * Main entry point: Analyze a wallet for paperhands behavior
+ * Now with incremental processing - computes stats as batches arrive
  */
 export async function analyzePaperhands(
   walletAddress: string,
@@ -52,7 +66,7 @@ export async function analyzePaperhands(
 
   try {
     const timeRangeText = daysBack ? ` (last ${daysBack} days)` : '';
-    console.log(`Starting analysis${timeRangeText} for wallet:`, walletAddress);
+    console.log(`Starting incremental analysis${timeRangeText} for wallet:`, walletAddress);
     onProgress?.(`Starting wallet analysis${timeRangeText}...`, 0);
     
     // Calculate date range
@@ -60,23 +74,86 @@ export async function analyzePaperhands(
     const startDate = daysBack 
       ? new Date(endDate.getTime() - daysBack * 24 * 60 * 60 * 1000)
       : new Date(0);
+
+    // State for incremental analysis
+    const state: IncrementalAnalysisState = {
+      positions: new Map(),
+      events: [],
+      processedMints: new Set(),
+      lastStats: null,
+      swapsProcessed: 0,
+      isPartial: false,
+    };
+
+    let isTimedOut = false;
+    const allSwaps: any[] = [];
+
+    // Set up timeout
+    const timeoutPromise = new Promise<'timeout'>((resolve) => {
+      setTimeout(() => {
+        isTimedOut = true;
+        resolve('timeout');
+      }, INCREMENTAL_TIMEOUT_MS);
+    });
+
+    // Process swaps incrementally as they arrive
+    const processSwapBatch = (swaps: any[]) => {
+      for (const swap of swaps) {
+        addSwapToPositions(state.positions, swap);
+        state.swapsProcessed++;
+      }
+    };
+
+    // Fetch with incremental callbacks
+    const fetchPromise = (async () => {
+      onProgress?.(`Fetching and parsing trades${timeRangeText}...`, 5);
+      
+      await parseSwapsIncrementally(
+        walletAddress,
+        daysBack,
+        onProgress,
+        (batchSwaps, isComplete) => {
+          if (isTimedOut) return; // Stop processing if timed out
+          
+          if (batchSwaps.length > 0) {
+            allSwaps.push(...batchSwaps);
+            processSwapBatch(batchSwaps);
+            
+            // Update progress
+            onProgress?.(
+              `Processing trades${timeRangeText}... (${state.swapsProcessed} trades)`,
+              Math.min(10 + state.swapsProcessed / 10, 75)
+            );
+          }
+          
+          if (isComplete) {
+            // Fetch completed
+          }
+        }
+      );
+      
+      return 'complete' as const;
+    })();
+
+    // Race between fetch completion and timeout
+    const result = await Promise.race([fetchPromise, timeoutPromise]);
     
-    // Parse trades using Enhanced API (accurate, fast)
-    onProgress?.(`Fetching and parsing trades${timeRangeText}...`, 5);
-    const swaps = await parseSwapsWithEnhancedAPI(walletAddress, daysBack, onProgress);
-    
-    console.log(`Found ${swaps.length} signatures from Enhanced API${timeRangeText}`);
-    
-    if (swaps.length === 0) {
-      console.info(`No coin buys or sells found${timeRangeText}. Proceeding with empty results.`);
+    if (result === 'timeout') {
+      console.log(`Analysis timed out after ${INCREMENTAL_TIMEOUT_MS / 1000}s with ${state.swapsProcessed} swaps processed`);
+      state.isPartial = true;
+      onProgress?.(`Timeout reached - computing partial results from ${state.swapsProcessed} trades...`, 80);
     }
 
-    console.log(`Parsed ${swaps.length} coin trades${timeRangeText}`);
+    console.log(`Fetched ${allSwaps.length} signatures, processed ${state.swapsProcessed} swaps${timeRangeText}`);
+    
+    // If we have NO swaps at all, throw an error
+    if (state.swapsProcessed === 0) {
+      console.info(`No coin buys or sells found${timeRangeText}. Returning empty results.`);
+      return generateWalletStats(walletAddress, [], daysBack, startDate, endDate, 0, state.isPartial);
+    }
 
-    // Group by token and match buys with sells
-    onProgress?.(`Grouping trades by token${timeRangeText}...`, 80);
-    const positions = groupIntoPositions(swaps);
-
+    // Convert positions map to array
+    const positions = Array.from(state.positions.values());
     console.log(`Grouped into ${positions.length} trading positions`);
 
     // Calculate paperhands events
@@ -90,9 +167,8 @@ export async function analyzePaperhands(
     console.log(`Found ${events.length} paperhands events`);
 
     // Generate final stats
-    onProgress?.(`Calculating regret metrics${timeRangeText}...`, 90);
     onProgress?.(`Generating final report${timeRangeText}...`, 95);
-    const stats = generateWalletStats(walletAddress, events, daysBack, startDate, endDate, positions.length);
+    const stats = generateWalletStats(walletAddress, events, daysBack, startDate, endDate, positions.length, state.isPartial);
 
     onProgress?.('Analysis complete!', 100);
     return stats;
@@ -103,64 +179,58 @@ export async function analyzePaperhands(
 }
 
 /**
- * Group swaps into trading positions by token
+ * Add a swap to the positions map incrementally
  */
-function groupIntoPositions(swaps: any[]): TradePosition[] {
-  const positionMap = new Map<string, TradePosition>();
-
-  for (const swap of swaps) {
-    if (!positionMap.has(swap.tokenMint)) {
-      const fallbackSymbol = swap.tokenSymbol || (swap.tokenMint ? `${swap.tokenMint.slice(0, 4)}...${swap.tokenMint.slice(-4)}` : 'Unknown');
-      const fallbackName = swap.tokenName || fallbackSymbol || 'Unknown Token';
-      positionMap.set(swap.tokenMint, {
-        tokenMint: swap.tokenMint,
-        tokenSymbol: fallbackSymbol,
-        tokenName: fallbackName,
-        tokenLogo: swap.tokenLogo,
-        tokenLogos: swap.tokenLogos,
-        buys: [],
-        sells: []
-      });
-    }
-
-    const position = positionMap.get(swap.tokenMint)!;
-    if (!position.tokenSymbol && swap.tokenSymbol) {
-      position.tokenSymbol = swap.tokenSymbol;
-    }
-    if (!position.tokenName && swap.tokenName) {
-      position.tokenName = swap.tokenName;
-    }
-    if (!position.tokenLogo && swap.tokenLogo) {
-      position.tokenLogo = swap.tokenLogo;
-    }
-    if (swap.tokenLogos && swap.tokenLogos.length > 0) {
-      const existing = new Set(position.tokenLogos ?? []);
-      for (const logo of swap.tokenLogos) {
-        if (logo) existing.add(logo);
-      }
-      position.tokenLogos = Array.from(existing);
-    }
-    
-    if (swap.type === 'buy') {
-      position.buys.push({
-        signature: swap.signature,
-        timestamp: swap.timestamp,
-        amount: swap.amountOut,
-        price: swap.pricePerToken,
-        totalCost: swap.amountIn
-      });
-    } else {
-      position.sells.push({
-        signature: swap.signature,
-        timestamp: swap.timestamp,
-        amount: swap.amountIn,
-        price: swap.pricePerToken,
-        totalValue: swap.amountOut
-      });
-    }
+function addSwapToPositions(positionMap: Map<string, TradePosition>, swap: any): void {
+  if (!positionMap.has(swap.tokenMint)) {
+    const fallbackSymbol = swap.tokenSymbol || (swap.tokenMint ? `${swap.tokenMint.slice(0, 4)}...${swap.tokenMint.slice(-4)}` : 'Unknown');
+    const fallbackName = swap.tokenName || fallbackSymbol || 'Unknown Token';
+    positionMap.set(swap.tokenMint, {
+      tokenMint: swap.tokenMint,
+      tokenSymbol: fallbackSymbol,
+      tokenName: fallbackName,
+      tokenLogo: swap.tokenLogo,
+      tokenLogos: swap.tokenLogos,
+      buys: [],
+      sells: []
+    });
   }
 
-  return Array.from(positionMap.values());
+  const position = positionMap.get(swap.tokenMint)!;
+  if (!position.tokenSymbol && swap.tokenSymbol) {
+    position.tokenSymbol = swap.tokenSymbol;
+  }
+  if (!position.tokenName && swap.tokenName) {
+    position.tokenName = swap.tokenName;
+  }
+  if (!position.tokenLogo && swap.tokenLogo) {
+    position.tokenLogo = swap.tokenLogo;
+  }
+  if (swap.tokenLogos && swap.tokenLogos.length > 0) {
+    const existing = new Set(position.tokenLogos ?? []);
+    for (const logo of swap.tokenLogos) {
+      if (logo) existing.add(logo);
+    }
+    position.tokenLogos = Array.from(existing);
+  }
+  
+  if (swap.type === 'buy') {
+    position.buys.push({
+      signature: swap.signature,
+      timestamp: swap.timestamp,
+      amount: swap.amountOut,
+      price: swap.pricePerToken,
+      totalCost: swap.amountIn
+    });
+  } else {
+    position.sells.push({
+      signature: swap.signature,
+      timestamp: swap.timestamp,
+      amount: swap.amountIn,
+      price: swap.pricePerToken,
+      totalValue: swap.amountOut
+    });
+  }
 }
 
 /**
@@ -308,7 +378,8 @@ function generateWalletStats(
   daysBack?: number,
   startDate?: Date,
   endDate?: Date,
-  coinsTradedCount?: number
+  coinsTradedCount?: number,
+  isPartial?: boolean
 ): WalletStats {
   const totalRegret = events.reduce((sum, e) => sum + e.regretAmount, 0);
   const totalRealized = events.reduce((sum, e) => sum + e.realizedProfit, 0);
@@ -385,6 +456,7 @@ function generateWalletStats(
       daysBack
     } : undefined,
     coinsTraded: coinsTradedCount,
+    isPartial: isPartial ?? false,
   };
 }
 

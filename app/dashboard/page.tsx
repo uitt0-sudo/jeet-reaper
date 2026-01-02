@@ -51,8 +51,6 @@ const Dashboard = () => {
   
   // Partial results state for timeout handling
   const [isPartialResult, setIsPartialResult] = useState(false);
-  const [_scanStartTime, setScanStartTime] = useState<number | null>(null);
-  const SCAN_TIMEOUT_MS = 90000; // 90 seconds
 
   // Update simulated queue length every minute with random number 1-25
   useEffect(() => {
@@ -156,7 +154,6 @@ const Dashboard = () => {
     setProgressMessage("Initializing analysis...");
     setProgressPercent(0);
     setIsPartialResult(false);
-    setScanStartTime(Date.now());
 
     // Show a helpful message after 10 seconds
     const slowAnalysisTimer = setTimeout(() => {
@@ -168,58 +165,21 @@ const Dashboard = () => {
       });
     }, 10000);
 
-    // 90-second soft timeout - will show partial results
-    let timedOut = false;
-    const timeoutTimer = setTimeout(() => {
-      timedOut = true;
-    }, SCAN_TIMEOUT_MS);
-
     try {
-      const analysisPromise = analyzePaperhands(trimmedAddress, selectedDays, (message, percent) => {
+      // Analysis now handles timeout internally and returns partial results with isPartial flag
+      const stats = await analyzePaperhands(trimmedAddress, selectedDays, (message, percent) => {
         setProgressMessage(message);
         setProgressPercent(percent);
       });
 
-      // Race between analysis completion and timeout
-      const stats = await Promise.race([
-        analysisPromise,
-        new Promise<null>((resolve) => {
-          const checkTimeout = setInterval(() => {
-            if (timedOut) {
-              clearInterval(checkTimeout);
-              resolve(null);
-            }
-          }, 500);
-        })
-      ]);
-
-      if (stats === null) {
-        // Timeout occurred - show partial results message
+      // Check if results are partial (hit the 90s timeout)
+      if (stats.isPartial) {
         setIsPartialResult(true);
-        setIsAnalyzing(false);
-        setProgressMessage("");
-        setProgressPercent(0);
         toast({
           title: "⚡ High traffic detected",
           description: "Showing partial results. Full analysis may complete shortly.",
           duration: 8000,
         });
-        // The actual analysis may still complete in the background
-        // We just stop waiting on the frontend
-        analysisPromise.then((fullStats) => {
-          // If it completes later, update with full results
-          if (fullStats) {
-            setWalletStats(fullStats);
-            setIsPartialResult(false);
-            toast({
-              title: "Full Analysis Complete!",
-              description: `Found ${fullStats.totalEvents} paperhands events`,
-            });
-          }
-        }).catch(() => {
-          // Silently ignore - user already has partial state
-        });
-        return;
       }
 
       setWalletStats(stats);
@@ -275,11 +235,9 @@ const Dashboard = () => {
       });
     } finally {
       clearTimeout(slowAnalysisTimer);
-      clearTimeout(timeoutTimer);
       setIsAnalyzing(false);
       setProgressMessage("");
       setProgressPercent(0);
-      setScanStartTime(null);
     }
   };
 

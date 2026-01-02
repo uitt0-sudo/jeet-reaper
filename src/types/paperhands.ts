@@ -62,6 +62,7 @@ export interface WalletStats {
     endDate: string;
     daysBack: number;
   };
+  isPartial?: boolean;
 }
 
 export interface LeaderboardEntry {
