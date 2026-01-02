@@ -398,6 +398,25 @@ export default function Rewards() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Holder Rewards Box */}
+                      <div className="mt-4 p-5 rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent relative overflow-hidden">
+                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent pointer-events-none" />
+                        <div className="relative">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                              <Sparkles className="w-4 h-4 text-primary" />
+                            </div>
+                            <span className="text-sm font-bold text-primary uppercase tracking-wide">Holder Rewards</span>
+                          </div>
+                          <h4 className="text-lg font-bold text-foreground mb-2">
+                            It Pays Not to Be a Jeet
+                          </h4>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            Holders of the native <span className="font-semibold text-primary">$PAPERHANDS</span> token receive automatic, recurring SOL rewards sent directly to their wallet. No claiming required — just hold and earn passively.
+                          </p>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>
