@@ -214,6 +214,18 @@ const kolsData: KOL[] = [
     fumblesTracked: 5,
     rank: 16,
   },
+  {
+    name: "Inside Calls",
+    imageUrl: "/images/kol-insidecalls.jpg",
+    totalFumbled: "$226,906",
+    totalFumbledNum: 226906,
+    worstFumbleToken: "KLED",
+    worstFumbleDate: "2025",
+    worstFumbleAmount: "-$143,426",
+    worstFumbleAmountNum: 143426,
+    fumblesTracked: 5288,
+    rank: 17,
+  },
 ];
 
 const getRankIcon = (rank: number) => {
