@@ -37,7 +37,7 @@ const calculateCashback = (regretAmount: number): string => {
 
 const Dashboard = () => {
   const [walletAddress, setWalletAddress] = useState("");
-  const [selectedDays, setSelectedDays] = useState<number>(30);
+  const [selectedDays, setSelectedDays] = useState<number>(7);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [walletStats, setWalletStats] = useState<WalletStats | null>(null);
   const [progressMessage, setProgressMessage] = useState("");
@@ -335,35 +335,35 @@ const Dashboard = () => {
                   className="grid grid-cols-2 gap-3 md:grid-cols-4"
                 >
                   <div className="relative">
+                    <RadioGroupItem value="1" id="1day" className="peer sr-only" />
+                    <Label
+                      htmlFor="1day"
+                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/20 bg-background/50 p-3 transition-all hover:border-primary/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
+                    >
+                      <span className="font-bold">Last 24 Hours</span>
+                      <span className="text-xs text-muted-foreground">~15-30 sec</span>
+                    </Label>
+                  </div>
+                  
+                  <div className="relative">
                     <RadioGroupItem value="7" id="7days" className="peer sr-only" />
                     <Label
                       htmlFor="7days"
                       className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/20 bg-background/50 p-3 transition-all hover:border-primary/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
                     >
                       <span className="font-bold">Last 7 Days</span>
-                      <span className="text-xs text-muted-foreground">~30-45 sec</span>
+                      <span className="text-xs text-muted-foreground">~30-60 sec</span>
                     </Label>
                   </div>
                   
                   <div className="relative">
-                    <RadioGroupItem value="30" id="30days" className="peer sr-only" />
+                    <RadioGroupItem value="14" id="14days" className="peer sr-only" />
                     <Label
-                      htmlFor="30days"
+                      htmlFor="14days"
                       className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/20 bg-background/50 p-3 transition-all hover:border-primary/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
                     >
-                      <span className="font-bold">Last 30 Days</span>
+                      <span className="font-bold">Last 14 Days</span>
                       <span className="text-xs text-muted-foreground">~1-2 min</span>
-                    </Label>
-                  </div>
-                  
-                  <div className="relative">
-                    <RadioGroupItem value="90" id="90days" className="peer sr-only" />
-                    <Label
-                      htmlFor="90days"
-                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/20 bg-background/50 p-3 transition-all hover:border-primary/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
-                    >
-                      <span className="font-bold">Last 90 Days</span>
-                      <span className="text-xs text-muted-foreground">~2-3 min</span>
                     </Label>
                   </div>
                   
