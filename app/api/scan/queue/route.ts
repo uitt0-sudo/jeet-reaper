@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/integrations/supabase/server';
+import { isKolWallet, KOL_REDIRECT_MESSAGE } from '@/config/kol-wallets';
 
 const MAX_CONCURRENT = 5;
 const RATE_LIMIT_MINUTES = 15; // Soft rate limit: 1 scan per wallet per 15 minutes
@@ -15,6 +16,16 @@ export async function POST(request: NextRequest) {
         { error: 'walletAddress is required' },
         { status: 400 }
       );
+    }
+
+    // ========== KOL WALLET BLOCK ==========
+    // Check if wallet is a known KOL - block before any DB/RPC calls
+    if (isKolWallet(walletAddress)) {
+      return NextResponse.json({
+        error: 'KOL wallet detected',
+        isKol: true,
+        message: KOL_REDIRECT_MESSAGE,
+      }, { status: 403 });
     }
 
     const supabase = createServerSupabaseClient();

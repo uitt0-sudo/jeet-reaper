@@ -20,6 +20,7 @@ import { WalletStats } from "@/types/paperhands";
 import { toast } from "@/hooks/use-toast";
 import { analyzePaperhands } from "@/services/paperhands";
 import { isValidSolanaAddress } from "@/services/solana";
+import { isKolWallet, KOL_REDIRECT_MESSAGE } from "@/config/kol-wallets";
 import TokenLogo from "@/components/TokenLogo";
 import { formatNumberShort } from "@/lib/utils";
 
@@ -144,6 +145,16 @@ const Dashboard = () => {
       toast({ 
         title: "Invalid Address", 
         description: "Please enter a valid Solana wallet address", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    // Check if wallet is a known KOL - block before any API calls
+    if (isKolWallet(trimmedAddress)) {
+      toast({ 
+        title: "KOL Wallet Detected", 
+        description: KOL_REDIRECT_MESSAGE, 
         variant: "destructive" 
       });
       return;
