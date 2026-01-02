@@ -3,11 +3,11 @@
 // Feature flag: set to true to enable analysis, false to disable
 const ANALYZE_ENABLED = true;
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle } from "lucide-react";
+import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle, Users, Loader2 } from "lucide-react";
 import { Navigation, TopBar } from "@/components/Navigation";
 import { AnimatedLoader } from "@/components/AnimatedLoader";
 import { MetricCard } from "@/components/MetricCard";
@@ -43,6 +43,98 @@ const Dashboard = () => {
   const [progressMessage, setProgressMessage] = useState("");
   const [progressPercent, setProgressPercent] = useState(0);
   const [_showSlow, setShowSlow] = useState(false);
+  
+  // Queue state for high traffic mode
+  const [queueLength, setQueueLength] = useState(0);
+  const [queuePosition, setQueuePosition] = useState<number | null>(null);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+
+  // Fetch queue status periodically
+  const fetchQueueStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/scan/queue');
+      if (response.ok) {
+        const data = await response.json();
+        setQueueLength(data.queuedJobs ?? 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch queue status:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchQueueStatus();
+    const interval = setInterval(fetchQueueStatus, 10000); // Every 10 seconds
+    return () => clearInterval(interval);
+  }, [fetchQueueStatus]);
+
+  // Poll job status when we have a job in queue
+  useEffect(() => {
+    if (!currentJobId) return;
+
+    const pollJobStatus = async () => {
+      try {
+        const response = await fetch(`/api/scan/status?jobId=${currentJobId}`);
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        
+        if (data.status === 'queued') {
+          setQueuePosition(data.queuePosition);
+          setProgressMessage(`You are #${data.queuePosition} in line. Scans are processed in order.`);
+        } else if (data.status === 'processing') {
+          setQueuePosition(null);
+          setProgressMessage('Your scan is now processing...');
+        } else if (data.status === 'completed' && data.result) {
+          // Scan completed - use results
+          setCurrentJobId(null);
+          setQueuePosition(null);
+          setIsAnalyzing(false);
+          
+          // Map queued result to WalletStats format
+          const stats: WalletStats = {
+            address: walletAddress,
+            paperhandsScore: 0,
+            totalRegret: data.result.totalRegret ?? 0,
+            totalRegretPercent: 0,
+            worstLoss: 0,
+            totalExitedEarly: 0,
+            totalEvents: data.result.totalEvents ?? 0,
+            coinsTraded: data.result.coinsTraded ?? 0,
+            winRate: data.result.winRate ?? 0,
+            avgHoldTime: data.result.avgHoldTime ?? 0,
+            avgShouldaHoldTime: 0,
+            lossRate: 0,
+            topRegrettedTokens: data.result.topRegrettedTokens ?? [],
+            analysisDateRange: data.result.analysisDateRange,
+            events: [],
+          };
+          setWalletStats(stats);
+          toast({ 
+            title: "Analysis Complete!", 
+            description: stats.totalEvents > 0 
+              ? `Found ${stats.totalEvents} paperhands events`
+              : `No paperhands events detected`,
+          });
+        } else if (data.status === 'failed') {
+          setCurrentJobId(null);
+          setQueuePosition(null);
+          setIsAnalyzing(false);
+          toast({ 
+            title: "Analysis Failed", 
+            description: data.error || 'An error occurred during analysis',
+            variant: "destructive" 
+          });
+        }
+      } catch (error) {
+        console.error('Failed to poll job status:', error);
+      }
+    };
+
+    pollJobStatus();
+    const interval = setInterval(pollJobStatus, 3000); // Poll every 3 seconds
+    return () => clearInterval(interval);
+  }, [currentJobId, walletAddress]);
 
   const handleAnalyze = async () => {
     const trimmedAddress = walletAddress.trim();
@@ -154,6 +246,53 @@ const Dashboard = () => {
       
       <main className="ml-64 mt-16 p-8">
         <div className="mx-auto max-w-7xl space-y-8">
+          {/* High Traffic Mode Banner */}
+          <AnimatePresence>
+            {queueLength > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="rounded-lg border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 px-6 py-4"
+              >
+                <div className="flex items-center gap-3">
+                  <Users className="h-5 w-5 flex-shrink-0 text-amber-500" />
+                  <div className="flex-1">
+                    <span className="font-bold text-amber-400">🚦 High Traffic Mode</span>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Due to launch demand, wallet scans are processed in a secure queue to prevent RPC throttling.
+                      Your scan is guaranteed — wait times may increase.
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-lg font-bold text-amber-400">{queueLength}</span>
+                    <p className="text-xs text-muted-foreground">in queue</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Queue Position Display */}
+          <AnimatePresence>
+            {queuePosition !== null && isAnalyzing && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="rounded-lg border border-primary/30 bg-primary/10 px-6 py-4"
+              >
+                <div className="flex items-center justify-center gap-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <div className="text-center">
+                    <span className="text-lg font-bold text-primary">You are #{queuePosition} in line</span>
+                    <p className="text-sm text-muted-foreground">Scans are processed in order. Please wait...</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Beta Disclaimer Banner - Slim Style */}
           <motion.div
             initial={{ opacity: 0, y: -10 }}
