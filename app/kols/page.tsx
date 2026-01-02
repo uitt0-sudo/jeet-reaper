@@ -6,7 +6,7 @@ import { Navigation, TopBar } from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { X, TrendingDown, Calendar, Flame, Trophy, Skull, DollarSign } from "lucide-react";
+import { X, TrendingDown, Calendar, Flame, Trophy, Skull, DollarSign, Info } from "lucide-react";
 
 interface KOL {
   name: string;
@@ -467,6 +467,19 @@ const KOLsPage = () => {
               A curated museum showcasing the legendary mistakes of Solana&apos;s most watched traders. 
               Even the biggest names paperhand.
             </p>
+          </motion.div>
+
+          {/* Disclaimer notice */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.05 }}
+            className="mb-6"
+          >
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border border-border/50 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5 shrink-0" />
+              <span>Fumbles are calculated per wallet. Old unmigrated tokens from legacy protocols may not be included.</span>
+            </div>
           </motion.div>
 
           {/* Stats banner */}
