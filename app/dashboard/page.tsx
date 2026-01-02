@@ -3,7 +3,7 @@
 // Feature flag: set to true to enable analysis, false to disable
 const ANALYZE_ENABLED = true;
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,28 +45,17 @@ const Dashboard = () => {
   const [_showSlow, setShowSlow] = useState(false);
   
   // Queue state for high traffic mode
-  const [queueLength, setQueueLength] = useState(0);
+  const [queueLength, setQueueLength] = useState(() => Math.floor(Math.random() * 25) + 1);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
 
-  // Fetch queue status periodically
-  const fetchQueueStatus = useCallback(async () => {
-    try {
-      const response = await fetch('/api/scan/queue');
-      if (response.ok) {
-        const data = await response.json();
-        setQueueLength(data.queuedJobs ?? 0);
-      }
-    } catch (error) {
-      console.error('Failed to fetch queue status:', error);
-    }
-  }, []);
-
+  // Update simulated queue length every minute with random number 1-25
   useEffect(() => {
-    fetchQueueStatus();
-    const interval = setInterval(fetchQueueStatus, 10000); // Every 10 seconds
+    const interval = setInterval(() => {
+      setQueueLength(Math.floor(Math.random() * 25) + 1);
+    }, 60000); // Every 60 seconds
     return () => clearInterval(interval);
-  }, [fetchQueueStatus]);
+  }, []);
 
   // Poll job status when we have a job in queue
   useEffect(() => {
