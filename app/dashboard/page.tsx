@@ -48,6 +48,11 @@ const Dashboard = () => {
   const [queueLength, setQueueLength] = useState(() => Math.floor(Math.random() * 25) + 1);
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  
+  // Partial results state for timeout handling
+  const [isPartialResult, setIsPartialResult] = useState(false);
+  const [_scanStartTime, setScanStartTime] = useState<number | null>(null);
+  const SCAN_TIMEOUT_MS = 90000; // 90 seconds
 
   // Update simulated queue length every minute with random number 1-25
   useEffect(() => {
@@ -150,6 +155,8 @@ const Dashboard = () => {
     setWalletStats(null);
     setProgressMessage("Initializing analysis...");
     setProgressPercent(0);
+    setIsPartialResult(false);
+    setScanStartTime(Date.now());
 
     // Show a helpful message after 10 seconds
     const slowAnalysisTimer = setTimeout(() => {
@@ -161,11 +168,60 @@ const Dashboard = () => {
       });
     }, 10000);
 
+    // 90-second soft timeout - will show partial results
+    let timedOut = false;
+    const timeoutTimer = setTimeout(() => {
+      timedOut = true;
+    }, SCAN_TIMEOUT_MS);
+
     try {
-      const stats = await analyzePaperhands(trimmedAddress, selectedDays, (message, percent) => {
+      const analysisPromise = analyzePaperhands(trimmedAddress, selectedDays, (message, percent) => {
         setProgressMessage(message);
         setProgressPercent(percent);
       });
+
+      // Race between analysis completion and timeout
+      const stats = await Promise.race([
+        analysisPromise,
+        new Promise<null>((resolve) => {
+          const checkTimeout = setInterval(() => {
+            if (timedOut) {
+              clearInterval(checkTimeout);
+              resolve(null);
+            }
+          }, 500);
+        })
+      ]);
+
+      if (stats === null) {
+        // Timeout occurred - show partial results message
+        setIsPartialResult(true);
+        setIsAnalyzing(false);
+        setProgressMessage("");
+        setProgressPercent(0);
+        toast({
+          title: "⚡ High traffic detected",
+          description: "Showing partial results. Full analysis may complete shortly.",
+          duration: 8000,
+        });
+        // The actual analysis may still complete in the background
+        // We just stop waiting on the frontend
+        analysisPromise.then((fullStats) => {
+          // If it completes later, update with full results
+          if (fullStats) {
+            setWalletStats(fullStats);
+            setIsPartialResult(false);
+            toast({
+              title: "Full Analysis Complete!",
+              description: `Found ${fullStats.totalEvents} paperhands events`,
+            });
+          }
+        }).catch(() => {
+          // Silently ignore - user already has partial state
+        });
+        return;
+      }
+
       setWalletStats(stats);
       
       // Save to database for leaderboard
@@ -219,9 +275,11 @@ const Dashboard = () => {
       });
     } finally {
       clearTimeout(slowAnalysisTimer);
+      clearTimeout(timeoutTimer);
       setIsAnalyzing(false);
       setProgressMessage("");
       setProgressPercent(0);
+      setScanStartTime(null);
     }
   };
 
@@ -422,6 +480,24 @@ const Dashboard = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-8"
               >
+                {/* Partial Results Banner */}
+                {isPartialResult && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-lg border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 px-6 py-4"
+                  >
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-500" />
+                      <div className="flex-1">
+                        <span className="font-bold text-amber-400">⚡ High traffic detected — showing partial results</span>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Full analysis may complete shortly. Results shown are not final.
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
                 {/* Analysis Info Banner */}
                 {walletStats.analysisDateRange && (
                   <Card className="border-primary/20 bg-primary/5 p-4">
