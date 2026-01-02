@@ -509,169 +509,6 @@ function buildStandardLogoCandidates(tokenMint: string): string[] {
 }
 
 /**
- * Parse DEX swaps using Helius Enhanced API via server-side proxy (preferred - accurate wallet-centric parsing)
- */
-async function fetchAndParseTradesEnhanced(
-  walletAddress: string,
-  daysBack?: number,
-  onProgress?: ProgressCallback
-): Promise<ParsedSwap[]> {
-  // Always use the server-side proxy for Helius API calls
-
-  const cutoffTime = daysBack 
-    ? Math.floor(Date.now() / 1000) - (daysBack * 24 * 60 * 60)
-    : 0;
-  
-  const timeRangeText = daysBack ? ` (last ${daysBack} days)` : '';
-  const swaps: ParsedSwap[] = [];
-  let before: string | undefined = undefined;
-  let batchCount = 0;
-  let pageLimit = HELIUS_DEFAULT_PAGE_SIZE;
-  let retryCurrentBatch = false;
-  let repeated400Errors = 0;
-
-  console.log(`Using Helius Enhanced API for accurate trade parsing${timeRangeText}...`);
-
-  while (true) {
-    if (!retryCurrentBatch) {
-      batchCount++;
-    }
-    retryCurrentBatch = false;
-    
-    try {
-      // Use server-side API proxy for transactions
-      const url = new URL('/api/helius/transactions', window.location.origin);
-      url.searchParams.set('wallet', walletAddress);
-      url.searchParams.set('limit', pageLimit.toString());
-      if (before) {
-        url.searchParams.set('before', before);
-      }
-      
-      const response = await fetch(url.toString());
-      
-      if (!response.ok) {
-        throw new HeliusApiError(response.status, `HTTP error ${response.status}`);
-      }
-      
-      const txResponse = await response.json() as any[];
-
-      if (!txResponse || txResponse.length === 0) {
-        break;
-      }
-
-      console.log(`Batch ${batchCount}: Received ${txResponse.length} transactions from Enhanced API`);
-      repeated400Errors = 0;
-
-      let reachedCutoff = false;
-      let parsedInBatch = 0;
-      let skippedNoTokenTransfers = 0;
-      let skippedNoTradedToken = 0;
-      for (const tx of txResponse) {
-        const blockTime = tx.timestamp || 0;
-        
-        // Stop if we hit the cutoff date
-        if (cutoffTime > 0 && blockTime < cutoffTime) {
-          console.log(`Reached cutoff date after ${batchCount} batches`);
-          reachedCutoff = true;
-          break;
-        }
-
-        // Skip failed transactions
-        if (tx.transactionError) continue;
-        
-        // Track why swaps are skipped
-        if (!tx.tokenTransfers || tx.tokenTransfers.length === 0) {
-          skippedNoTokenTransfers++;
-          continue;
-        }
-
-        const swap = parseEnhancedTransaction(tx, walletAddress);
-        if (swap) {
-          swaps.push(swap);
-          parsedInBatch++;
-        } else {
-          skippedNoTradedToken++;
-        }
-      }
-
-      console.log(`Batch ${batchCount}: Parsed ${parsedInBatch} trades, skipped ${skippedNoTokenTransfers} (no token transfers), ${skippedNoTradedToken} (no valid trade) - ${swaps.length} total so far`);
-
-      // Prepare next page and stop when less than limit
-      const lastSignature = txResponse[txResponse.length - 1]?.signature;
-      if (!lastSignature || lastSignature === before) {
-        console.log('No new signature returned from Helius, stopping pagination');
-        break;
-      }
-      before = lastSignature;
-
-      if (txResponse.length < pageLimit || reachedCutoff) break;
-      
-      onProgress?.(
-        `Parsing trades${timeRangeText}... (${swaps.length} found)`,
-        10 + Math.min(batchCount * 5, 80)
-      );
-
-      // Rate limiting
-      await sleep(50);
-    } catch (error: any) {
-      if (error instanceof HeliusApiError) {
-        console.error(
-          `Helius error on batch ${batchCount} (status ${error.status}):`,
-          error.message,
-          error.details || ''
-        );
-
-        if (error.status === 400) {
-          repeated400Errors++;
-          if (pageLimit > HELIUS_MIN_PAGE_SIZE) {
-            const newLimit = Math.max(HELIUS_MIN_PAGE_SIZE, Math.floor(pageLimit / 2));
-            if (newLimit < pageLimit) {
-              console.warn(`Reducing Helius page size from ${pageLimit} to ${newLimit} due to 400 error`);
-              onProgress?.(
-                `Helius rejected page size ${pageLimit}. Retrying with ${newLimit} transactions...`,
-                0
-              );
-              pageLimit = newLimit;
-              retryCurrentBatch = true;
-              await sleep(100);
-              continue;
-            }
-          }
-
-          if (repeated400Errors >= 2) {
-            onProgress?.(
-              'Helius refused further pages. Falling back to RPC parser for remaining history.',
-              0
-            );
-            console.warn('Stopping Enhanced pagination after repeated 400 errors');
-            break;
-          }
-        } else if (error.status === 401 || error.status === 403) {
-          const message = 'Helius API key was rejected. Please verify your API key and try again.';
-          onProgress?.(message, 0);
-          throw new Error(message);
-        } else if (error.status === 404) {
-          onProgress?.('Helius reports no transactions for this wallet.', 0);
-          break;
-        } else if (error.status === 0) {
-          onProgress?.('Network error contacting Helius. Falling back to RPC parser.', 0);
-          break;
-        } else {
-          onProgress?.(`Helius returned error ${error.status}. Using RPC fallback for safety.`, 0);
-          break;
-        }
-      } else {
-        console.error(`Unexpected error fetching Enhanced batch ${batchCount}:`, error?.message || error);
-      }
-      break;
-    }
-  }
-
-  console.log(`Found ${swaps.length} trades via Helius Enhanced API${timeRangeText}`);
-  return swaps;
-}
-
-/**
  * Parse a Helius Enhanced transaction for wallet-centric token deltas
  */
 function parseEnhancedTransaction(tx: any, walletAddress: string): ParsedSwap | null {
@@ -847,70 +684,41 @@ export async function parseSwapTransactions(
 }
 
 /**
- * Main entry point: Parse swaps with Enhanced API (preferred) or RPC fallback
+ * Callback for incremental swap batches
  */
-export async function parseSwapsWithEnhancedAPI(
+export type SwapBatchCallback = (swaps: ParsedSwap[], isComplete: boolean) => void;
+
+/**
+ * Main entry point: Parse swaps incrementally, calling onBatch as batches complete
+ * Returns a controller to check current state and stop early
+ */
+export async function parseSwapsIncrementally(
   walletAddress: string,
   daysBack?: number,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  onBatch?: SwapBatchCallback
 ): Promise<ParsedSwap[]> {
   const timeRangeText = daysBack ? ` (last ${daysBack} days)` : '';
 
-  // Run Enhanced fetch and RPC parsing in parallel with robust error handling
-  const [enhancedResult, rpcResult] = await Promise.allSettled([
-    fetchAndParseTradesEnhanced(walletAddress, daysBack, onProgress),
-    (async () => {
-      const txs = await fetchWalletTransactions(walletAddress, daysBack, onProgress);
-      return parseSwapTransactions(txs, daysBack, onProgress);
-    })(),
-  ]);
-
-  let enhancedSwaps: ParsedSwap[] = [];
-  let rpcSwaps: ParsedSwap[] = [];
-  let enhancedError: unknown = null;
-  let rpcError: unknown = null;
-
-  if (enhancedResult.status === 'fulfilled') {
-    enhancedSwaps = enhancedResult.value;
-  } else {
-    enhancedError = enhancedResult.reason;
-    console.warn('Helius Enhanced parsing failed:', enhancedError);
-    onProgress?.('Helius Enhanced API unavailable. Continuing with RPC data…', 0);
-  }
-
-  if (rpcResult.status === 'fulfilled') {
-    rpcSwaps = rpcResult.value;
-  } else {
-    rpcError = rpcResult.reason;
-    console.warn('RPC fallback parsing failed:', rpcError);
-    onProgress?.('Solana RPC requests failed. Attempting to continue with partial Helius data…', 0);
-  }
-
-  if (enhancedSwaps.length === 0 && rpcSwaps.length === 0) {
-    const message =
-      (enhancedError instanceof Error && enhancedError.message) ||
-      (rpcError instanceof Error && rpcError.message) ||
-      'Unable to retrieve trades from Solana. Please try again shortly.';
-    throw new Error(message);
-  }
-
-  // Merge by signature, prefer Enhanced
-  const bySig = new Map<string, ParsedSwap>();
-  for (const s of rpcSwaps) bySig.set(s.signature, s);
-  for (const s of enhancedSwaps) bySig.set(s.signature, s);
-  const merged = Array.from(bySig.values());
-  console.log(`Trade sources merged: Enhanced=${enhancedSwaps.length}, RPC=${rpcSwaps.length}, Combined=${merged.length}${timeRangeText}`);
-
-  // Fetch metadata for all tokens concurrently
-  if (merged.length > 0) {
-    const uniqueMints = Array.from(new Set(merged.map(s => s.tokenMint)));
-    const metaEntries = await Promise.all(uniqueMints.map(async (mint) => {
-      const meta = await getTokenMetadata(mint);
-      return [mint, meta] as const;
-    }));
-    const metaMap = new Map<string, Awaited<ReturnType<typeof getTokenMetadata>>>(metaEntries);
-    for (const swap of merged) {
-      const m = metaMap.get(swap.tokenMint);
+  // Track all swaps for final merge
+  const allSwaps: ParsedSwap[] = [];
+  const metadataCache = new Map<string, Awaited<ReturnType<typeof getTokenMetadata>>>();
+  
+  // Helper to enrich swaps with metadata
+  const enrichSwaps = async (swaps: ParsedSwap[]) => {
+    const uniqueMints = Array.from(new Set(swaps.map(s => s.tokenMint).filter(m => !metadataCache.has(m))));
+    if (uniqueMints.length > 0) {
+      const metaEntries = await Promise.all(uniqueMints.map(async (mint) => {
+        const meta = await getTokenMetadata(mint);
+        return [mint, meta] as const;
+      }));
+      for (const [mint, meta] of metaEntries) {
+        metadataCache.set(mint, meta);
+      }
+    }
+    
+    for (const swap of swaps) {
+      const m = metadataCache.get(swap.tokenMint);
       if (m) {
         swap.tokenSymbol = m.symbol;
         swap.tokenName = m.name;
@@ -926,9 +734,158 @@ export async function parseSwapsWithEnhancedAPI(
         }
       }
     }
+    return swaps;
+  };
+
+  // Run Enhanced fetch with incremental callbacks
+  const cutoffTime = daysBack 
+    ? Math.floor(Date.now() / 1000) - (daysBack * 24 * 60 * 60)
+    : 0;
+
+  let before: string | undefined = undefined;
+  let batchCount = 0;
+  let pageLimit = HELIUS_DEFAULT_PAGE_SIZE;
+  let retryCurrentBatch = false;
+  let repeated400Errors = 0;
+
+  console.log(`Using Helius Enhanced API for incremental trade parsing${timeRangeText}...`);
+
+  while (true) {
+    if (!retryCurrentBatch) {
+      batchCount++;
+    }
+    retryCurrentBatch = false;
+    
+    try {
+      const url = new URL('/api/helius/transactions', window.location.origin);
+      url.searchParams.set('wallet', walletAddress);
+      url.searchParams.set('limit', pageLimit.toString());
+      if (before) {
+        url.searchParams.set('before', before);
+      }
+      
+      const response = await fetch(url.toString());
+      
+      if (!response.ok) {
+        throw new HeliusApiError(response.status, `HTTP error ${response.status}`);
+      }
+      
+      const txResponse = await response.json() as any[];
+
+      if (!txResponse || txResponse.length === 0) {
+        break;
+      }
+
+      console.log(`Batch ${batchCount}: Received ${txResponse.length} transactions from Enhanced API`);
+      repeated400Errors = 0;
+
+      let reachedCutoff = false;
+      const batchSwaps: ParsedSwap[] = [];
+      
+      for (const tx of txResponse) {
+        const blockTime = tx.timestamp || 0;
+        
+        if (cutoffTime > 0 && blockTime < cutoffTime) {
+          console.log(`Reached cutoff date after ${batchCount} batches`);
+          reachedCutoff = true;
+          break;
+        }
+
+        if (tx.transactionError) continue;
+        if (!tx.tokenTransfers || tx.tokenTransfers.length === 0) continue;
+
+        const swap = parseEnhancedTransaction(tx, walletAddress);
+        if (swap) {
+          batchSwaps.push(swap);
+        }
+      }
+
+      // Enrich and emit batch immediately
+      if (batchSwaps.length > 0) {
+        const enrichedSwaps = await enrichSwaps(batchSwaps);
+        allSwaps.push(...enrichedSwaps);
+        
+        // Call the batch callback with incremental data
+        if (onBatch) {
+          onBatch(enrichedSwaps, false);
+        }
+      }
+
+      console.log(`Batch ${batchCount}: Parsed ${batchSwaps.length} trades - ${allSwaps.length} total so far`);
+
+      const lastSignature = txResponse[txResponse.length - 1]?.signature;
+      if (!lastSignature || lastSignature === before) {
+        console.log('No new signature returned from Helius, stopping pagination');
+        break;
+      }
+      before = lastSignature;
+
+      if (txResponse.length < pageLimit || reachedCutoff) break;
+      
+      onProgress?.(
+        `Parsing trades${timeRangeText}... (${allSwaps.length} found)`,
+        10 + Math.min(batchCount * 5, 70)
+      );
+
+      await sleep(50);
+    } catch (error: any) {
+      if (error instanceof HeliusApiError) {
+        console.error(
+          `Helius error on batch ${batchCount} (status ${error.status}):`,
+          error.message,
+          error.details || ''
+        );
+
+        if (error.status === 400) {
+          repeated400Errors++;
+          if (pageLimit > HELIUS_MIN_PAGE_SIZE) {
+            const newLimit = Math.max(HELIUS_MIN_PAGE_SIZE, Math.floor(pageLimit / 2));
+            if (newLimit < pageLimit) {
+              console.warn(`Reducing Helius page size from ${pageLimit} to ${newLimit} due to 400 error`);
+              pageLimit = newLimit;
+              retryCurrentBatch = true;
+              await sleep(100);
+              continue;
+            }
+          }
+
+          if (repeated400Errors >= 2) {
+            console.warn('Stopping Enhanced pagination after repeated 400 errors');
+            break;
+          }
+        } else if (error.status === 401 || error.status === 403) {
+          throw new Error('Helius API key was rejected. Please verify your API key and try again.');
+        } else if (error.status === 404) {
+          break;
+        } else {
+          break;
+        }
+      } else {
+        console.error(`Unexpected error fetching Enhanced batch ${batchCount}:`, error?.message || error);
+      }
+      break;
+    }
   }
 
-  return merged;
+  console.log(`Found ${allSwaps.length} trades via incremental Helius Enhanced API${timeRangeText}`);
+  
+  // Signal completion
+  if (onBatch) {
+    onBatch([], true);
+  }
+  
+  return allSwaps;
+}
+
+/**
+ * Legacy: Parse swaps with Enhanced API (non-incremental, for compatibility)
+ */
+export async function parseSwapsWithEnhancedAPI(
+  walletAddress: string,
+  daysBack?: number,
+  onProgress?: ProgressCallback
+): Promise<ParsedSwap[]> {
+  return parseSwapsIncrementally(walletAddress, daysBack, onProgress);
 }
 
 /**
