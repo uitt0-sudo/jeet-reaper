@@ -41,8 +41,6 @@ const Dashboard = () => {
   const [selectedDays, setSelectedDays] = useState<number>(7);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [walletStats, setWalletStats] = useState<WalletStats | null>(null);
-  const [progressMessage, setProgressMessage] = useState("");
-  const [progressPercent, setProgressPercent] = useState(0);
   const [_showSlow, setShowSlow] = useState(false);
   
   // Queue state for high traffic mode
@@ -74,10 +72,8 @@ const Dashboard = () => {
         
         if (data.status === 'queued') {
           setQueuePosition(data.queuePosition);
-          setProgressMessage(`You are #${data.queuePosition} in line. Scans are processed in order.`);
         } else if (data.status === 'processing') {
           setQueuePosition(null);
-          setProgressMessage('Your scan is now processing...');
         } else if (data.status === 'completed' && data.result) {
           // Scan completed - use results
           setCurrentJobId(null);
@@ -162,8 +158,6 @@ const Dashboard = () => {
 
     setIsAnalyzing(true);
     setWalletStats(null);
-    setProgressMessage("Initializing analysis...");
-    setProgressPercent(0);
     setIsPartialResult(false);
 
     // Show a helpful message after 10 seconds
@@ -178,10 +172,7 @@ const Dashboard = () => {
 
     try {
       // Analysis now handles timeout internally and returns partial results with isPartial flag
-      const stats = await analyzePaperhands(trimmedAddress, selectedDays, (message, percent) => {
-        setProgressMessage(message);
-        setProgressPercent(percent);
-      });
+      const stats = await analyzePaperhands(trimmedAddress, selectedDays);
 
       // Check if results are partial (hit the 90s timeout)
       if (stats.isPartial) {
@@ -247,8 +238,6 @@ const Dashboard = () => {
     } finally {
       clearTimeout(slowAnalysisTimer);
       setIsAnalyzing(false);
-      setProgressMessage("");
-      setProgressPercent(0);
     }
   };
 
@@ -432,10 +421,7 @@ const Dashboard = () => {
                 exit={{ opacity: 0 }}
               >
                 <Card className="card-glass noise-texture">
-                  <AnimatedLoader 
-                    message={progressMessage}
-                    progress={progressPercent}
-                  />
+                  <AnimatedLoader />
                 </Card>
               </motion.div>
             )}

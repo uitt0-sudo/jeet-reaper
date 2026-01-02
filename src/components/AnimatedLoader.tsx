@@ -1,12 +1,22 @@
 import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
-interface AnimatedLoaderProps {
-  message?: string;
-  progress?: number;
-}
+const SCAN_MESSAGES = [
+  "Checking wallet activity…",
+  "Analyzing recent behavior…",
+  "Calculating paperhands score…",
+  "Reviewing past trades…",
+];
 
-export const AnimatedLoader = ({ message = "Analyzing...", progress = 0 }: AnimatedLoaderProps) => {
+export const AnimatedLoader = () => {
+  const [messageIndex, setMessageIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMessageIndex((prev) => (prev + 1) % SCAN_MESSAGES.length);
+    }, 2800);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <motion.div
@@ -15,57 +25,50 @@ export const AnimatedLoader = ({ message = "Analyzing...", progress = 0 }: Anima
       exit={{ opacity: 0, scale: 0.95 }}
       className="flex min-h-[400px] flex-col items-center justify-center space-y-8 p-8"
     >
-      {/* Animated particles */}
+      {/* Smooth spinning loader */}
       <div className="relative">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-          className="h-24 w-24"
-        >
-          <Loader2 className="h-24 w-24 text-primary" />
-        </motion.div>
+        <div className="h-20 w-20 rounded-full border-4 border-muted" />
+        <div 
+          className="absolute inset-0 h-20 w-20 rounded-full border-4 border-transparent border-t-primary animate-spin"
+          style={{ animationDuration: "1s", animationTimingFunction: "ease-in-out" }}
+        />
         
-        {Array.from({ length: 8 }).map((_, i) => (
+        {/* Subtle pulsing glow */}
+        <div className="absolute inset-0 h-20 w-20 rounded-full bg-primary/10 animate-pulse" />
+        
+        {/* Floating particles */}
+        {Array.from({ length: 6 }).map((_, i) => (
           <motion.div
             key={i}
-            className="absolute left-1/2 top-1/2 h-2 w-2 rounded-full bg-primary"
+            className="absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full bg-primary/60"
             animate={{
-              x: [0, Math.cos((i * Math.PI) / 4) * 60],
-              y: [0, Math.sin((i * Math.PI) / 4) * 60],
-              opacity: [1, 0],
-              scale: [1, 0],
+              x: [0, Math.cos((i * Math.PI) / 3) * 50],
+              y: [0, Math.sin((i * Math.PI) / 3) * 50],
+              opacity: [0.8, 0],
+              scale: [1, 0.5],
             }}
             transition={{
-              duration: 2,
+              duration: 2.5,
               repeat: Infinity,
-              delay: i * 0.2,
+              delay: i * 0.3,
               ease: "easeOut",
             }}
           />
         ))}
       </div>
 
-      {/* Progress bar */}
-      <div className="w-full max-w-md space-y-4">
-        <div className="flex items-center justify-between text-sm">
-          <motion.span
-            key={message}
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-muted-foreground"
-          >
-            {message}
-          </motion.span>
-          <span className="font-mono text-primary">{Math.round(progress)}%</span>
-        </div>
-        
-        <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
-          <motion.div
-            className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_2s_infinite]" />
-        </div>
+      {/* Rotating message */}
+      <div className="h-8 flex items-center justify-center">
+        <motion.span
+          key={messageIndex}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
+          className="text-muted-foreground text-lg"
+        >
+          {SCAN_MESSAGES[messageIndex]}
+        </motion.span>
       </div>
     </motion.div>
   );
