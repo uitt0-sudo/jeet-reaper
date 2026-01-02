@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Home, Trophy, FileQuestion, Code, Info, Gift, TrendingUp, Twitter } from "lucide-react";
+import { Home, Trophy, FileQuestion, Code, Info, Gift, TrendingUp, Twitter, Skull } from "lucide-react";
 import { Button } from "./ui/button";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { path: "/how-it-works", icon: FileQuestion, label: "How It Works" },
   { path: "/api", icon: Code, label: "API Docs" },
   { path: "/about", icon: Info, label: "About" },
+  { path: "/kols", icon: Skull, label: "KOLs" },
 ];
 
 export const Navigation = () => {
