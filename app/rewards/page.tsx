@@ -3,6 +3,19 @@
 // Feature flag: set to true to enable scanning, false to disable
 const SCAN_ENABLED = true;
 
+// Deterministic eligibility check - 10% of wallets are eligible
+// Uses a simple hash of wallet address to ensure same wallet always gets same result
+function isWalletEligibleForCashback(walletAddress: string): boolean {
+  let hash = 0;
+  for (let i = 0; i < walletAddress.length; i++) {
+    const char = walletAddress.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  // Take absolute value and check if divisible by 10 (10% chance)
+  return Math.abs(hash) % 10 === 0;
+}
+
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Navigation } from "@/components/Navigation";
@@ -36,6 +49,8 @@ export default function Rewards() {
   const [_isRandomRewardLoading, setIsRandomRewardLoading] = useState(false);
   const [isCashbackLoading, setIsCashbackLoading] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [_isEligibleForDraw, setIsEligibleForDraw] = useState<boolean | null>(null);
+  const [showNotEligiblePopup, setShowNotEligiblePopup] = useState(false);
   const { toast } = useToast();
   const tokenSymbol = process.env.NEXT_PUBLIC_TOKEN_SYMBOL ?? "TOKEN";
 
@@ -49,6 +64,8 @@ export default function Rewards() {
     setScanComplete(false);
     setRewardStatus(null);
     setTokenHoldings(null);
+    setIsEligibleForDraw(null);
+    setShowNotEligiblePopup(false);
 
     try {
       const holdings = await fetchTokenHoldings(trimmedAddress);
@@ -57,7 +74,17 @@ export default function Rewards() {
 
       setTokenHoldings(holdings);
       setRewardStatus(status);
-      setScanComplete(true);
+      
+      // Check deterministic eligibility (10% of wallets)
+      const eligible = isWalletEligibleForCashback(trimmedAddress);
+      setIsEligibleForDraw(eligible);
+      
+      if (eligible) {
+        setScanComplete(true);
+      } else {
+        // Show not eligible popup instead of claim UI
+        setShowNotEligiblePopup(true);
+      }
 
       const holdingsText = holdings.toLocaleString(undefined, {
         maximumFractionDigits: 2,
@@ -433,7 +460,43 @@ export default function Rewards() {
             )}
           </AnimatePresence>
 
-          {/* Results Section */}
+          {/* Not Eligible Popup */}
+          <AnimatePresence>
+            {showNotEligiblePopup && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50"
+              >
+                <Card className="max-w-md w-full mx-4 bg-card/90 border-red-500/30">
+                  <CardContent className="pt-12 pb-12 text-center">
+                    <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
+                      <AlertCircle className="w-10 h-10 text-red-500" />
+                    </div>
+                    <h3 className="text-2xl font-bold mb-2 text-red-400">Not Eligible for Cashback</h3>
+                    <p className="text-muted-foreground mb-6">
+                      Your wallet did not meet the paperhand quota to claim cashback rewards. You can still earn automatically by holding 5M+ $PAPERHANDS tokens.
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowNotEligiblePopup(false);
+                        setWalletAddress("");
+                        setTokenHoldings(null);
+                        setRewardStatus(null);
+                        setIsEligibleForDraw(null);
+                      }}
+                      className="border-red-500/30 hover:bg-red-500/10"
+                    >
+                      Try Another Wallet
+                    </Button>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {scanComplete && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
