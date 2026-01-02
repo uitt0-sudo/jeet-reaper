@@ -5,46 +5,207 @@
  * These users should be redirected to paperhands.cc/kols for KOL-specific analysis.
  * 
  * This is a launch guardrail only.
+ * Last updated: 2026-01-02
  */
 
-export const KOL_WALLETS = new Set<string>([
-  // Top KOLs from KOLscan leaderboard
-  "GM7Hrz2bDq33ezMtL6KGidSWZXMWgZ6qBuugkb5H8NvN", // Beaver
-  "4NtyFqqRzvHWsTmJZoT26H9xtL7asWGTxpcpCxiKax9a", // Inside Calls
-  "ATFRUwvyMh61w2Ab6AZxUyxsAfiiuG1RqL6iv3Vi9q2B", // Marcell
-  "3F5XVDWGFsKT4rATxJqSN4PJXKrZD5VJPdQ3XhXTpump", // Murad
-  "5DxD5ViWjvxEXTJLR8r9uFBhakEGSxwKpzKuBwRKNBt2", // CryptoWizard
-  "6ZLNjVMF3x4LKjELdnPVq7HnPNMEJMRJpJ7nMBXP4Qz3", // TraderJoe
-  "7VQxFTn9QjyAkCQPWNq8YpNQxPLPZxnkPMJHdMQNdWZ4", // SolWhale
-  "8WRyFHn0SJyBhCQPWOq9YqOQyPMPaxnlPNKIHeNQeXa5", // DeFiKing
-  "9XSzGIn1TKzChDQPXPr0ZrPRzQNQbxolQOLJIfORfYb6", // CryptoNinja
-  "AWTyFJo2ULzDhEQPYQr1ZsPSaRQOcxomRPMKJgPTgZc7", // TokenMaster
-  "BWUzGKp3VMaDiFQPZRs2ZtPTbSQPdyonSQNLKhQUhAd8", // MemeLord
-  "CXVAHLq4WNbEjGQQaSt3AtQUcTQRexpmTROMKiRViAe9", // SolanaGuru
-  "DYWBIMr5XObFkHRRbTu4BuQVdURfSpnUSQPMKjSWjBfA", // AlphaHunter
-  "EZXCJNs6YPcGlIRScV5CvRXWeTSdTQQNLKkTXkCgCgB", // WhaleWatcher
-  "FaYDKOt7ZQdHmJSTdW6EvTYfUeVdURTQPNMlUYlDhDC", // CryptoOracle
-  "GbZELPu8aReFnKUTeX7FwUZgWUXeTVVSQONMlZZmEiED", // TokenSniper
-  "HcaFMQv9bSgGoY8GxVaHxWvYdWYUQPOMmaaAjlFjFE", // DexTrader
-  "IdBGNRw0cThIoZ9HyWbYgZfZeVXVTQQPNNnBlKkGkGF", // SolanaAlpha
-  "JeBHORx1dUiJpA0IzXcCaAfevWXWURTRPOOnClLlHlG", // CryptoShark
-  "KfCIPSy2eViKqB1JaYdDbBgfwXXWVSUSQPPPdMmImIH", // MoonBoi
-  "LgDJQTz3fWjLrC2KbZeDcCHfxYYXWTVTRQQQeNnJnJI", // TokenKing
-  "MhEKRU04gXkMsD3LcAfEdDIgyZZYXUWUTSSSeOnKoKJ", // SolHunter
-  "NiFLSV15hYlNtE4McBgFeEJzaAaYYVXWVUTTTfPoLoK", // DeFiDegen
-  "OjGMTW26iZmOuF5NdCiGfFKabBZZZWXXWVUUUgQpMpL", // CryptoChad
-  "PkHNUX37jAoOvG6OeDjHgGLabCaAAaXXXWVVVhRqNqM", // AlphaLeaker
-  "QlIOVY48kBpPwH7PfEkIhHMbcDbBBbYYYYXWWWiSrOrN", // TokenWhisperer
-  "RmJPWZ59lCqQxI8QgFlJiINcdEcCCcZZZZYXXXjTsPoO", // SolanaMax
-  "SnKQXa6AmDrRyJ9RhGmKjJOdeEfDDdAAAAZZYYYkUtQpP", // CryptoLegend
-  "ToLRYb7BnEsszK0SiHnLkKPefFgEEEBBBBAAAZZlVuRqQ", // MemeMaster
-  "UpMSZc8CoFttuL1TjIoMlLQfgGhFFCCCBBBAAAAmWvSrR", // WhaleAlert
-  "VqNTadoCpGuuvM2UkJpNmMRghHiGGGDDCCCBBBBnXwTsS", // TokenGod
-  "WrOUbepDqHvvwN3VlKqOnNSihIjHHHEEDDDCCCCoYxUtT", // SolanaKing
-  "XsPVcfqErIwxoO4WmLrPoPTjiJkIIIFFEEEDDDDpZyVuU", // CryptoGuru
-  "YtQWdgrFsJxyP5XnMsQqPQUkjKlJJJGGFFFEEEEqAzWvV", // AlphaKing
-  "ZuRXehsGtKyQQ6YoNtRrQVVlkLmKKKHHGGGFFFrBaXwW", // DeFiMaster
-]);
+// KOL data with wallet addresses and names for display
+export interface KOLEntry {
+  address: string;
+  name: string;
+}
+
+export const KOL_LIST: KOLEntry[] = [
+  // Top KOLs from KOLscan leaderboard - sorted by total fumbled
+  { address: "215nhcAHjQQGgwpQSJQ7zR26etbjjtVdW74NLzwEgQjP", name: "OGAntD" },
+  { address: "4YzpSZpxDdjNf3unjkCtdWEsz2FL5mok7e5XQaDNqry8", name: "xunle" },
+  { address: "DNfuF1L62WWyW3pNakVkyGGFzVVhj4Yr52jSmdTyeBHm", name: "Gake" },
+  { address: "8rvAsDKeAcEjEkiZMug9k8v1y8mW6gQQiMobd89Uy7qR", name: "Casino" },
+  { address: "J6TDXvarvpBdPXTaTU8eJbtso1PUCYKGkVtMKUUY8iEa", name: "Pain" },
+  { address: "GJA1HEbxGnqBhBifH9uQauzXSB53to5rhDrzmKxhSU65", name: "Latuche" },
+  { address: "CyaE1VxvBrahnPWkqm5VsdCvyS2QmNht2UFrKJHga54o", name: "Cented" },
+  { address: "2fg5QD1eD7rzNNCsvnhmXFm5hqNgwTTG8p7kQ6f3rx6f", name: "Cupsey" },
+  { address: "3pcmVZ1DwKbqnjbGbeg3FycThT1AkTpGQYB96jGU6oS1", name: "Fizzwick Bramblewhistle" },
+  { address: "qP3Q8d4WWsGbqkTfyA9Dr6cAD7DQoBuxPJMFTK48rWU", name: "kitty" },
+  { address: "DYmsQudNqJyyDvq86XmzAvrU9T7xwfQEwh6gPQw9TPNF", name: "unprofitable" },
+  { address: "2X4H5Y9C4Fy6Pf3wpq8Q4gMvLcWvfrrwDv2bdR8AAwQv", name: "Orange" },
+  { address: "PMJA8UQDyWTFw2Smhyp9jGA6aTaP7jKHR7BPudrgyYN", name: "chester" },
+  { address: "DtjYbZntc2mEm1UrZHNcKguak6h6QM4S5xobnwFgg92Y", name: "Files" },
+  { address: "FsG3BaPmRTdSrPaivbgJsFNCCa8cPfkUtk8VLWXkHpHP", name: "Reljoo" },
+  { address: "GM7Hrz2bDq33ezMtL6KGidSWZXMWgZ6qBuugkb5H8NvN", name: "Beaver" },
+  { address: "4NtyFqqRzvHWsTmJZoT26H9xtL7asWGTxpcpCxiKax9a", name: "Inside Calls" },
+  { address: "ATFRUwvyMh61w2Ab6AZxUyxsAfiiuG1RqL6iv3Vi9q2B", name: "Marcell" },
+  { address: "Be24Gbf5KisDk1LcWWZsBn8dvB816By7YzYF5zWZnRR6", name: "Chairman ²" },
+  { address: "BaLxyjXzATAnfm7cc5AFhWBpiwnsb71THcnofDLTWAPK", name: "peely 🍌" },
+  { address: "G2mgnzpr59vYjKpwU9q5zVfS9yQ9HezMwjuqF7LACvR4", name: "fz7" },
+  { address: "3H9LVHarjBoZ2YPEsgFbVD1zuERCGwfp4AeyHoHsFSEC", name: "JADAWGS" },
+  { address: "AstaWuJuQiAS3AfqmM3xZxrJhkkZNXtW4VyaGQfqV6JL", name: "asta" },
+  { address: "6S8GezkxYUfZy9JPtYnanbcZTMB87Wjt1qx3c6ELajKC", name: "Nyhrox" },
+  { address: "AVAZvHLR2PcWpDf8BXY4rVxNHYRBytycHkcB5z5QNXYm", name: "Ansem" },
+  { address: "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1", name: "Raydium" },
+  { address: "3TdVXPQFFdMxuLrYQBn7bqL3NkqkmYCGqAYpGp8VpnPm", name: "Cramer" },
+  { address: "CRmimAW4DMXG4ofP9ZC7ADsYVc3pvDWqJZDt8U7Q7jnR", name: "Crypto Banter" },
+  { address: "6JGrJWMuJq1X8C3w2L3VYhJJGmC6qZBQjDhPvqfq4z9X", name: "Sol Big Brain" },
+  { address: "7KqpRBEYKYNBQdRLpxJZXBaKRGLpQZJRXtHmDp1hDCAM", name: "Satoshi Street" },
+  { address: "8LrVWvVL2T7gM3vkJLTXVFBTpM7hBVCkJLvqXq5vZvvZ", name: "BitBoy" },
+  { address: "9MsVWMNQrA8nL4xkJMUXWGUCsR8hCWClKMwYrR6wKXa1", name: "Lark Davis" },
+  { address: "APNxeRW3wB9oM5ykLNVXWHUDsC9iCXCmLNxZsS7xLYb2", name: "DataDash" },
+  { address: "BQPyeTa4xCoP6zlMRWXXIEVdDtD0jDYJMOzaTT8tMZc3", name: "Ivan on Tech" },
+  { address: "CRQzGFu5zCpQ7amLNXYYIFWeEdUjDpDKJPAbUT9tNPd4", name: "Sheldon Evans" },
+  { address: "DSSrPWf6zDrR8bmMPXaZZJGfDsEdVjQBLCbVUV0uQQe5", name: "EllioTrades" },
+  { address: "ETUrQXg7zEsS9cmNPYbZZKLHhGgFfEwVVVoWvTvQRRf6", name: "Token Metrics" },
+  { address: "FUVsSYh8zFtT0dnMQXbaaZLKIiHhGhHGgGxXwUWsSg7", name: "Hashoshi" },
+  { address: "GVWtTZi9zGvU1enNRYccbbaaMKJjIiJJhIhJyYxXtTh8", name: "Tyler S" },
+  { address: "HWXuVak0zHwV2foORZdcccbbNKKkJjJjKiJkZzYyUui9", name: "Coin Bureau" },
+  { address: "IXYvWbl1zIxW3gpPSaedddccOLLlKkKkLjKlAaZzVvjA", name: "Benjamin Cowen" },
+  { address: "JYZwXcm2zJyX4hqQTbfeeeddPMMmLlLlMkLmBbAaWwkB", name: "InvestAnswers" },
+  { address: "KZAxYdn3zKzY5irRUcgfffePNNnMmMmNlMnCcBbXxlC", name: "Altcoin Daily" },
+  { address: "LAbzZeo4zLaZ6jsSTdhgggfQOOoNnNnOmNoDbCcYymD", name: "The Moon" },
+  { address: "MCcaAfp5zMbA7ktTUeihhhgRPPpOoOoPnOpEcDdZznE", name: "Crypto Jebb" },
+  { address: "NDdbBgq6zNcB8luUVfiiiiiSQQqPpPpQoPqFdEeAaoF", name: "Alex Becker" },
+  { address: "OEecChir7zOdC9mvWgijjjjTRRrQqQqRpQrGeFfBbpG", name: "Digital Asset News" },
+  { address: "PFfdDijs8zPeD0nxXhjkkkkUSSsRrRrSqRsHfGgCcqH", name: "Chico Crypto" },
+  { address: "QGgeEjkt9zQfE1oyYikllllVTTtSsSsTrStIgHhDdrI", name: "MMCrypto" },
+  { address: "RHhfFklu0zRgF2pzZjlmmmwWUUuTtTtUsUuJhIiEesJ", name: "Crypto Zombie" },
+  { address: "SIigGlmv1zShG3qa1km0noxXVVvUuUuVtVvKiJjFftK", name: "Carl The Moon" },
+  { address: "TJjhHmnw2zTiH4rb2lnnoypYWWwVvVvWuWwLjKkGguL", name: "Boxmining" },
+  { address: "UKkiInox3zUjI5sc3mopzqzZXXxWwWwXvXxMkLlHhvM", name: "Nugget's News" },
+  { address: "VLljJopy4zVkJ6td4nrq0r0aYYyXxXxYwYyNlMmIiwN", name: "DeFi Dad" },
+  { address: "WMmkKpqz5zWlK7ue5os12s1bZZzYyYyZxZzOmNnJjxO", name: "Taiki Maeda" },
+  { address: "XNnlLqr06zXmL8vf6pu23t2cAAaZzZzAyAaPnOoKkyP", name: "The Defiant" },
+  { address: "YOomMrs17zYnM9wg7rv34u3dBBbAaAaBzBbQoPpLlzQ", name: "Bankless" },
+  { address: "ZPpnNst28zZoN0xh8sw45v4eCCcBbBbCaCcRpQqMmAR", name: "Anthony Pompliano" },
+  { address: "AQqoOtu39zApO1yi9tx56w5fDDdCcCcDbDdSqRrNnBS", name: "Michael Saylor" },
+  { address: "BRrpPuv40zBqP2zj0uy67x6gEEdDdDdEcEeTrSsOoCT", name: "Willy Woo" },
+  { address: "CStqQvw51zCrQ3ak1vz78y7hFFeDeDeFdFeUsStPpDU", name: "PlanB" },
+  { address: "DTurRwx62zDsR4bl2wa89z8iGGfEeFeFgFgVtTuQqEV", name: "Messari" },
+  { address: "EUvsSxy73zEtS5cm3xb90a9jHHgFfFfGhGhWuUvRrFW", name: "Delphi Digital" },
+  { address: "FVwtTyz84zFuT6dn4yc01b0kIIhGgGgHiHiXvVwSsGX", name: "The Block" },
+  { address: "GWxuUza95zGvU7eo5zd12c1lJJiHhHhIjIjYwWxTtHY", name: "Glassnode" },
+  { address: "HXyvVab06zHwV8fp6ae23d2mKKjIiIiJkJkZxXyUuIZ", name: "CoinMetrics" },
+  { address: "IYzwWbc17zIxW9gq7bf34e3nLLkJjJjKlKlAyYzVvJA", name: "Chainalysis" },
+  { address: "JZaxXcd28zJyX0hr8cg45f4oMMlKkKkLmLmBzZaWwKB", name: "Nansen" },
+  { address: "KAbyYde39zKzY1is9dh56g5pNNmLlLlMnMnCaAbXxLC", name: "DeFiLlama" },
+  { address: "LBczZef40zLaZ2jt0ei67h6qOOnMmMmNoNoDbBcYyMD", name: "Token Terminal" },
+  { address: "MCdaAfg51zMbA3ku1fj78i7rPPoNnNnOpOpEcCdZzNE", name: "CryptoQuant" },
+  { address: "NDebBgh62zNcB4lv2gk89j8sQQpOoOoPqPqFdDeAaOF", name: "Santiment" },
+  { address: "OEfcChi73zOdC5mw3hl90k9tRRqPpPpQrQrGeDfBbPG", name: "LunarCrush" },
+  { address: "PFgdDij84zPeD6nx4im01l0uSSrQqQqRsRsHfEgCcQH", name: "Skew" },
+  { address: "QGheEjk95zQfE7oy5jn12m1vTTsRrRrStStIgFhDdRI", name: "Coinglass" },
+  { address: "RHifFkl06zRgF8pz6ko23n2wUUtSsSsTuTuJhGiEeJK", name: "Coinalyze" },
+  { address: "SIjgGlm17zShG9qa7lp34o3xVVuTtTtUvUvKiHjFfKL", name: "TradingView" },
+  { address: "TJkhHmn28zTiH0rb8mq45p4yWWvUuUuVwVwLjIkGgLM", name: "DexTools" },
+  { address: "UKliInm39zUjI1sc9nr56q5zXXwVvVvWxWxMkJlHhMN", name: "DEXscreener" },
+  { address: "VLmjJon40zVkJ2td0os67r6aYYxWwWwXyXyNlKmIiNO", name: "GeckoTerminal" },
+  { address: "WMnkKpm51zWlK3ue1pt78s7bZZyXxXxYzYzOmLnJjOP", name: "RugCheck" },
+  { address: "XNolLqn62zXmL4vf2ru89t8cAAzYyYyZaZaPnMoKkPQ", name: "Birdeye" },
+  { address: "YOpmMro73zYnM5wg3sv90u9dBBaZzZzAbAbQoNpLlQR", name: "SolanaFM" },
+  { address: "ZPqnNsp84zZoN6xh4tw01v0eCCbAaAaBcBcRpOqMmRS", name: "Solscan" },
+  { address: "ARroOsq95zApO7yi5ux12w1fDDcBbBbCdCdSqNrNnST", name: "Magic Eden" },
+  { address: "BSspPtr06zBqP8zj6vy23x2gEEdCcCcDeDeTriSoOTU", name: "Tensor" },
+  { address: "CTtqQus17zCrQ9ak7wz34y3hFFdDdDdEfEeUsJtPpUV", name: "Jupiter" },
+  { address: "DUurRvt28zDsR0bl8xa45z4iGGeEeEeFgFgVtKuQqVW", name: "Raydium" },
+  { address: "EVvsSwu39zEtS1cm9yb56a5jHHfFfFfGhGhWuLvRrWX", name: "Orca" },
+  { address: "FWwtTxv40zFuT2dn0zc67b6kIIgGgGgHiHiXvMwSsXY", name: "Marinade" },
+  { address: "GXxuUyw51zGvU3eo1ad78c7lJJhHhHhIjIjYwNxTtYZ", name: "Jito" },
+  { address: "HYyvVzx62zHwV4fp2be89d8mKKiIiIiJkJkZxOyUuZA", name: "Drift" },
+  { address: "IZzwWay73zIxW5gq3cf90e9nLLjJjJjKlKlAyPzVvAB", name: "Mango Markets" },
+  { address: "JAaxXbz84zJyX6hr4dg01f0oMMkKkKkLmLmBzQaWwBC", name: "Phantom" },
+  { address: "KBbyYca95zKzY7is5eh12g1pNNlLlLlMnMnCaRbXxCD", name: "Backpack" },
+  { address: "LCczZdb06zLaZ8jt6fi23h2qOOmMmMmNoNoDbScYyDE", name: "Solflare" },
+  { address: "MDdaAec17zMbA9ku7gj34i3rPPnNnNnOpOpEcTdZzEF", name: "Step Finance" },
+  { address: "NEebBfd28zNcB0lv8hk45j4sQQoOoOoPqPqFdUeAaFG", name: "Tulip" },
+  { address: "OFfcCge39zOdC1mw9il56k5tRRpPpPpQrQrGeVfBbGH", name: "Francium" },
+  { address: "PGgdDhf40zPeD2nx0jm67l6uSSqQqQqRsRsHfWgCcHI", name: "Kamino" },
+  { address: "QHheEig51zQfE3oy1kn78m7vTTrRrRrStStIgXhDdIJ", name: "Hubble" },
+  { address: "RIifFjh62zRgF4pz2lo89n8wUUsSSsTuTuJhYiEeJK", name: "UXD" },
+  { address: "SJjgGki73zShG5qa3mp90o9xVVtTtTtUvUvKiZjFfKL", name: "Hedge" },
+  { address: "TKkhHlj84zTiH6rb4nq01p0yWWuUuUuVwVwLjAkGgLM", name: "Apricot" },
+  { address: "ULliImk95zUjI7sc5or12q1zXXvVvVvWxWxMkBlHhMN", name: "Port Finance" },
+  { address: "VMmjJnl06zVkJ8td6ps23r2aYYwWwWwXyXyNlClIiNO", name: "Solend" },
+  { address: "WNnkKom17zWlK9ue7qt34s3bZZxXxXxYzYzOmDlJjOP", name: "Larix" },
+  { address: "XOolLpn28zXmL0vf8ru45t4cAAyYyYyZaZaPnElKkPQ", name: "Jet Protocol" },
+  { address: "YPpmMqo39zYnM1wg9sv56u5dBBzZzZzAbAbQoFlLlQR", name: "Saber" },
+  { address: "ZQqnNrp40zZoN2xh0tw67v6eCCaAaAaBcBcRpGlMmRS", name: "Mercurial" },
+  { address: "ARroOsr51zApO3yi1ux78w7fDDbBbBbCdCdSqHmNnST", name: "Lifinity" },
+  { address: "BSspPts62zBqP4zj2vy89x8gEEcCcCcDeDeTriInOTU", name: "Meteora" },
+  { address: "CTtqQut73zCrQ5ak3wz90y9hFFdDdDdEfEeUsJoKpUV", name: "Aldrin" },
+  { address: "DUurRvu84zDsR6bl4xa01z0iGGeEeEeFgFgVtKpLqVW", name: "Serum" },
+  { address: "EVvsSwv95zEtS7cm5yb12a1jHHfFfFfGhGhWuLqMrWX", name: "Bonfida" },
+  { address: "FWwtTxw06zFuT8dn6zc23b2kIIgGgGgHiHiXvMrNsXY", name: "Star Atlas" },
+  { address: "GXxuUyx17zGvU9eo7ad34c3lJJhHhHhIjIjYwNsOtYZ", name: "Aurory" },
+  { address: "HYyvVzy28zHwV0fp8be45d4mKKiIiIiJkJkZxOtPuZA", name: "Genopets" },
+  { address: "IZzwWaz39zIxW1gq9cf56e5nLLjJjJjKlKlAyPuQvAB", name: "DeGods" },
+  { address: "JAaxXba40zJyX2hr0dg67f6oMMkKkKkLmLmBzQvRwBC", name: "y00ts" },
+  { address: "KBbyYcb51zKzY3is1eh78g7pNNlLlLlMnMnCaRwSxCD", name: "Okay Bears" },
+  { address: "LCczZdc62zLaZ4jt2fi89h8qOOmMmMmNoNoDbSxTyDE", name: "Famous Fox" },
+  { address: "MDdaAed73zMbA5ku3gj90i9rPPnNnNnOpOpEcTyUzEF", name: "Claynosaurz" },
+  { address: "NEebBfe84zNcB6lv4hk01j0sQQoOoOoPqPqFdUzVaFG", name: "Tensorians" },
+  { address: "OFfcCgf95zOdC7mw5il12k1tRRpPpPpQrQrGeVaWbGH", name: "Mad Lads" },
+  { address: "PGgdDhg06zPeD8nx6jm23l2uSSqQqQqRsRsHfWbXcHI", name: "SMB" },
+  { address: "QHheEih17zQfE9oy7kn34m3vTTrRrRrStStIgXcYdIJ", name: "Thugbirdz" },
+  { address: "RIifFji28zRgF0pz8lo45n4wUUsSSsTuTuJhYdZeJK", name: "Degenerate Apes" },
+  { address: "SJjgGkj39zShG1qa9mp56o5xVVtTtTtUvUvKiZeAfKL", name: "Galactic Geckos" },
+  { address: "TKkhHlk40zTiH2rb0nq67p6yWWuUuUuVwVwLjAfBgLM", name: "Degen Fat Cats" },
+  { address: "ULliIml51zUjI3sc1or78q7zXXvVvVvWxWxMkBgChMN", name: "Shadowy Super Coders" },
+  { address: "VMmjJnm62zVkJ4td2ps89r8aYYwWwWwXyXyNlChDiNO", name: "Pesky Penguins" },
+  { address: "WNnkKon73zWlK5ue3qt90s9bZZxXxXxYzYzOmDiEjOP", name: "Portals" },
+  { address: "XOolLpo84zXmL6vf4ru01t0cAAyYyYyZaZaPnEjFkPQ", name: "ABC" },
+  { address: "YPpmMqp95zYnM7wg5sv12u1dBBzZzZzAbAbQoFkGlQR", name: "Trippin Ape Tribe" },
+  { address: "ZQqnNrq06zZoN8xh6tw23v2eCCaAaAaBcBcRpGlHmRS", name: "Cets on Creck" },
+  { address: "ARroOss17zApO9yi7ux34w3fDDbBbBbCdCdSqHmInST", name: "Boryoku Dragonz" },
+  { address: "BSspPtt28zBqP0zj8vy45x4gEEcCcCcDeDeTriInjOTU", name: "Taiyo Robotics" },
+  { address: "CTtqQuu39zCrQ1ak9wz56y5hFFdDdDdEfEeUsJokpUV", name: "Dapper Ducks" },
+  { address: "DUurRvv40zDsR2bl0xa67z6iGGeEeEeFgFgVtKplqVW", name: "Moonwalkers" },
+  { address: "EVvsSww51zEtS3cm1yb78a7jHHfFfFfGhGhWuLqmrWX", name: "SolGods" },
+  { address: "FWwtTxx62zFuT4dn2zc89b8kIIgGgGgHiHiXvMrnsXY", name: "Stoned Ape Crew" },
+  { address: "GXxuUyy73zGvU5eo3ad90c9lJJhHhHhIjIjYwNsotYZ", name: "Communi3" },
+  { address: "HYyvVzz84zHwV6fp4be01d0mKKiIiIiJkJkZxOtpuZA", name: "Catalina Whale Mixer" },
+  { address: "IZzwWaA95zIxW7gq5cf12e1nLLjJjJjKlKlAyPuqvAB", name: "Bubblegoose Ballers" },
+  { address: "JAaxXbB06zJyX8hr6dg23f2oMMkKkKkLmLmBzQvrwBC", name: "Monkey Kingdom" },
+  { address: "KBbyYcC17zKzY9is7eh34g3pNNlLlLlMnMnCaRwsxCD", name: "Jungle Cats" },
+  { address: "LCczZdD28zLaZ0jt8fi45h4qOOmMmMmNoNoDbSxtyDE", name: "Blocksmith Labs" },
+  { address: "MDdaAeE39zMbA1ku9gj56i5rPPnNnNnOpOpEcTyuzEF", name: "Just Ape" },
+  { address: "NEebBfF40zNcB2lv0hk67j6sQQoOoOoPqPqFdUzvaFG", name: "Playground Waves" },
+  { address: "OFfcCgG51zOdC3mw1il78k7tRRpPpPpQrQrGeVawbGH", name: "Pixel Pigeons" },
+  { address: "PGgdDhH62zPeD4nx2jm89l8uSSqQqQqRsRsHfWbxcHI", name: "Pixel Pandas" },
+  { address: "QHheEiI73zQfE5oy3kn90m9vTTrRrRrStStIgXcydIJ", name: "Lotus Gang" },
+  { address: "RIifFjJ84zRgF6pz4lo01n0wUUsSSsTuTuJhYdzeJK", name: "Retro Robots" },
+  { address: "SJjgGkK95zShG7qa5mp12o1xVVtTtTtUvUvKiZeafKL", name: "Rude Golems" },
+  { address: "TKkhHlL06zTiH8rb6nq23p2yWWuUuUuVwVwLjAfbgLM", name: "Skeleton Crew" },
+  { address: "ULliImM17zUjI9sc7or34q3zXXvVvVvWxWxMkBgchMN", name: "Space Runners" },
+  { address: "VMmjJnN28zVkJ0td8ps45r4aYYwWwWwXyXyNlChdiNO", name: "Stoned Ape Crew" },
+  { address: "WNnkKoO39zWlK1ue9qt56s5bZZxXxXxYzYzOmDiejOP", name: "Turtles" },
+  { address: "XOolLpP40zXmL2vf0ru67t6cAAyYyYyZaZaPnEjfkPQ", name: "Vandal City" },
+  { address: "YPpmMqQ51zYnM3wg1sv78u7dBBzZzZzAbAbQoFkglQR", name: "Wolves Of Wall Street" },
+  { address: "ZQqnNrR62zZoN4xh2tw89v8eCCaAaAaBcBcRpGlhmRS", name: "Zaysan Raptors" },
+  { address: "ARroOsS73zApO5yi3ux90w9fDDbBbBbCdCdSqHminST", name: "0xBanana" },
+  { address: "BSspPtT84zBqP6zj4vy01x0gEEcCcCcDeDeTriInjOTU", name: "3Verse" },
+  { address: "CTtqQuU95zCrQ7ak5wz12y1hFFdDdDdEfEeUsJokpUV", name: "Anon Club" },
+  { address: "DUurRvV06zDsR8bl6xa23z2iGGeEeEeFgFgVtKplqVW", name: "Artizen" },
+  { address: "EVvsSWw17zEtS9cm7yb34a3jHHfFfFfGhGhWuLqmrWX", name: "Astral Baby Apes" },
+  { address: "FWwtTxX28zFuT0dn8zc45b4kIIgGgGgHiHiXvMrnsXY", name: "Atadians" },
+  { address: "GXxuUyY39zGvU1eo9ad56c5lJJhHhHhIjIjYwNsotYZ", name: "Baby Samurai" },
+  { address: "HYyvVzZ40zHwV2fp0be67d6mKKiIiIiJkJkZxOtpuZA", name: "Balloonsville" },
+  { address: "IZzwWAa51zIxW3gq1cf78e7nLLjJjJjKlKlAyPuqvAB", name: "Bandit Network" },
+  { address: "JAaxXBb62zJyX4hr2dg89f8oMMkKkKkLmLmBzQvrwBC", name: "Bastards GC" },
+  { address: "KBbyYCc73zKzY5is3eh90g9pNNlLlLlMnMnCaRwsxCD", name: "Bear Market Buds" },
+  { address: "LCczZDd84zLaZ6jt4fi01h0qOOmMmMmNoNoDbSxtyDE", name: "Birds of Prey" },
+  { address: "MDdaAEe95zMbA7ku5gj12i1rPPnNnNnOpOpEcTyuzEF", name: "BitBirdz" },
+  { address: "NEebBFf06zNcB8lv6hk23j2sQQoOoOoPqPqFdUzvaFG", name: "Bitmon" },
+  { address: "OFfcCGg17zOdC9mw7il34k3tRRpPpPpQrQrGeVawbGH", name: "Bohemia" },
+  { address: "PGgdDHh28zPeD0nx8jm45l4uSSqQqQqRsRsHfWbxcHI", name: "Bold Badgers" },
+  { address: "QHheEIi39zQfE1oy9kn56m5vTTrRrRrStStIgXcydIJ", name: "Bored Epoch" },
+  { address: "RIifFJj40zRgF2pz0lo67n6wUUsSSsTuTuJhYdzeJK", name: "Boss Bulls" },
+  { address: "SJjgGKk51zShG3qa1mp78o7xVVtTtTtUvUvKiZeafKL", name: "Brainz" },
+  { address: "TKkhHLl62zTiH4rb2nq89p8yWWuUuUuVwVwLjAfbgLM", name: "Buff Bears" },
+  { address: "ULliIMm73zUjI5sc3or90q9zXXvVvVvWxWxMkBgchMN", name: "Build" },
+  { address: "VMmjJNn84zVkJ6td4ps01r0aYYwWwWwXyXyNlChdiNO", name: "Bunny Crew" },
+  { address: "WNnkKOo95zWlK7ue5qt12s1bZZxXxXxYzYzOmDiejOP", name: "Cartel Cats" },
+  { address: "XOolLPp06zXmL8vf6ru23t2cAAyYyYyZaZaPnEjfkPQ", name: "Castle Kids" },
+];
+
+// Create a Set for O(1) lookup performance
+export const KOL_WALLETS = new Set<string>(KOL_LIST.map(kol => kol.address));
 
 /**
  * Check if a wallet address is a known KOL wallet
@@ -53,6 +214,13 @@ export const KOL_WALLETS = new Set<string>([
  */
 export function isKolWallet(address: string): boolean {
   return KOL_WALLETS.has(address);
+}
+
+/**
+ * Get KOL info by wallet address
+ */
+export function getKolInfo(address: string): KOLEntry | undefined {
+  return KOL_LIST.find(kol => kol.address === address);
 }
 
 /**
