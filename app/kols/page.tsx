@@ -35,18 +35,6 @@ const kolsData: KOL[] = [
     rank: 1,
   },
   {
-    name: "Lexapro",
-    imageUrl: "/images/kol-lexapro.jpg",
-    totalFumbled: "$8,863,380",
-    totalFumbledNum: 8863380,
-    worstFumbleToken: "pippin",
-    worstFumbleDate: "2025",
-    worstFumbleAmount: "-$6,643,700",
-    worstFumbleAmountNum: 6643700,
-    fumblesTracked: 4533,
-    rank: 2,
-  },
-  {
     name: "xunle",
     imageUrl: "https://cdn.kolscan.io/profiles/4YzpSZpxDdjNf3unjkCtdWEsz2FL5mok7e5XQaDNqry8.png",
     totalFumbled: "$6,397,187",
@@ -56,7 +44,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$3,695,634",
     worstFumbleAmountNum: 3695634,
     fumblesTracked: 5,
-    rank: 3,
+    rank: 2,
   },
   {
     name: "Gake",
@@ -68,7 +56,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$1,864,560",
     worstFumbleAmountNum: 1864560,
     fumblesTracked: 5,
-    rank: 4,
+    rank: 3,
   },
   {
     name: "Casino",
@@ -80,7 +68,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$701,273",
     worstFumbleAmountNum: 701273,
     fumblesTracked: 5,
-    rank: 5,
+    rank: 4,
   },
   {
     name: "Pain",
@@ -92,7 +80,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$1,216,333",
     worstFumbleAmountNum: 1216333,
     fumblesTracked: 5,
-    rank: 6,
+    rank: 5,
   },
   {
     name: "Latuche",
@@ -104,7 +92,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$705,990",
     worstFumbleAmountNum: 705990,
     fumblesTracked: 5,
-    rank: 7,
+    rank: 6,
   },
   {
     name: "Cented",
@@ -116,7 +104,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$577,454",
     worstFumbleAmountNum: 577454,
     fumblesTracked: 5,
-    rank: 8,
+    rank: 7,
   },
   {
     name: "Cupsey",
@@ -128,7 +116,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$1,121,099",
     worstFumbleAmountNum: 1121099,
     fumblesTracked: 5,
-    rank: 9,
+    rank: 8,
   },
   {
     name: "Fizzwick Bramblewhistle",
@@ -140,7 +128,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$567,275",
     worstFumbleAmountNum: 567275,
     fumblesTracked: 5,
-    rank: 10,
+    rank: 9,
   },
   {
     name: "kitty",
@@ -152,7 +140,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$392,518",
     worstFumbleAmountNum: 392518,
     fumblesTracked: 5,
-    rank: 11,
+    rank: 10,
   },
   {
     name: "unprofitable",
@@ -164,7 +152,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$161,883",
     worstFumbleAmountNum: 161883,
     fumblesTracked: 5,
-    rank: 12,
+    rank: 11,
   },
   {
     name: "Orange",
@@ -176,7 +164,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$334,561",
     worstFumbleAmountNum: 334561,
     fumblesTracked: 5,
-    rank: 13,
+    rank: 12,
   },
   {
     name: "chester",
@@ -188,7 +176,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$344,627",
     worstFumbleAmountNum: 344627,
     fumblesTracked: 5,
-    rank: 14,
+    rank: 13,
   },
   {
     name: "Files",
@@ -200,7 +188,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$383,154",
     worstFumbleAmountNum: 383154,
     fumblesTracked: 5,
-    rank: 15,
+    rank: 14,
   },
   {
     name: "Reljoo",
@@ -212,7 +200,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$251,320",
     worstFumbleAmountNum: 251320,
     fumblesTracked: 5,
-    rank: 16,
+    rank: 15,
   },
   {
     name: "Inside Calls",
@@ -224,7 +212,7 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$143,426",
     worstFumbleAmountNum: 143426,
     fumblesTracked: 5288,
-    rank: 17,
+    rank: 16,
   },
 ];
 
