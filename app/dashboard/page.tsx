@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle, Users, Loader2 } from "lucide-react";
+import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle, Users, Loader2, RefreshCw, Eye } from "lucide-react";
 import { Navigation, TopBar } from "@/components/Navigation";
 import { AnimatedLoader } from "@/components/AnimatedLoader";
 import { MetricCard } from "@/components/MetricCard";
@@ -51,6 +51,12 @@ const Dashboard = () => {
   
   // Partial results state for timeout handling
   const [isPartialResult, setIsPartialResult] = useState(false);
+  
+  // Scan state for "Show Paperhands" button
+  const [scanInProgress, setScanInProgress] = useState(false);
+  const [intermediateStats, setIntermediateStats] = useState<WalletStats | null>(null);
+  const [showEarlyResults, setShowEarlyResults] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Update simulated queue length every minute with random number 1-25
   useEffect(() => {
@@ -150,7 +156,10 @@ const Dashboard = () => {
     }
 
     setIsAnalyzing(true);
+    setScanInProgress(true);
     setWalletStats(null);
+    setIntermediateStats(null);
+    setShowEarlyResults(false);
     setProgressMessage("Initializing analysis...");
     setProgressPercent(0);
     setIsPartialResult(false);
@@ -170,11 +179,22 @@ const Dashboard = () => {
       const stats = await analyzePaperhands(trimmedAddress, selectedDays, (message, percent) => {
         setProgressMessage(message);
         setProgressPercent(percent);
+        
+        // Store intermediate stats for "Show Paperhands" button
+        if (percent >= 50) {
+          // After 50%, we likely have some processed data
+          setIntermediateStats(prev => prev || stats);
+        }
       });
+
+      // Scan completed
+      setScanInProgress(false);
+      setShowEarlyResults(false);
 
       // Check if results are partial (hit the 90s timeout)
       if (stats.isPartial) {
         setIsPartialResult(true);
+        setScanInProgress(true); // Scan might still be running in background
         toast({
           title: "⚡ High traffic detected",
           description: "Showing partial results. Full analysis may complete shortly.",
@@ -183,6 +203,7 @@ const Dashboard = () => {
       }
 
       setWalletStats(stats);
+      setIntermediateStats(null);
       
       // Save to database for leaderboard
       try {
@@ -227,6 +248,7 @@ const Dashboard = () => {
       });
     } catch (error) {
       console.error('Analysis error:', error);
+      setScanInProgress(false);
       const errorMessage = error instanceof Error ? error.message : 'Could not analyze wallet';
       toast({ 
         title: "Analysis Failed", 
@@ -241,8 +263,56 @@ const Dashboard = () => {
     }
   };
 
+  // Handle "Show Paperhands" button - view results while scan continues
+  const handleShowEarlyResults = () => {
+    if (walletStats || intermediateStats) {
+      setShowEarlyResults(true);
+      setIsAnalyzing(false); // Hide the loader but keep scan running
+    }
+  };
+
+  // Handle Refresh button - fetch latest cached results without new scan
+  const handleRefreshResults = async () => {
+    if (!walletAddress.trim()) return;
+    
+    setIsRefreshing(true);
+    try {
+      const response = await fetch(`/api/wallet-analyses?wallet=${encodeURIComponent(walletAddress.trim())}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.total_regret !== undefined) {
+          // Update with latest cached data
+          const updatedStats: WalletStats = {
+            ...walletStats!,
+            totalRegret: data.total_regret ?? walletStats?.totalRegret ?? 0,
+            totalEvents: data.total_events ?? walletStats?.totalEvents ?? 0,
+            coinsTraded: data.coins_traded ?? walletStats?.coinsTraded ?? 0,
+            winRate: data.win_rate ?? walletStats?.winRate ?? 0,
+            avgHoldTime: data.avg_hold_time ?? walletStats?.avgHoldTime ?? 0,
+            topRegrettedTokens: data.top_regretted_tokens ?? walletStats?.topRegrettedTokens ?? [],
+            isPartial: false, // Refreshed data is considered complete
+          };
+          setWalletStats(updatedStats);
+          setScanInProgress(false);
+          setIsPartialResult(false);
+          toast({
+            title: "Results refreshed",
+            description: "Showing latest analysis data.",
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh results:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Use displayed stats (either walletStats or intermediateStats for early view)
+  const displayStats = walletStats || intermediateStats;
+  
   // Unique coins traded (by mint or symbol as fallback)
-  const coinsTraded = walletStats?.coinsTraded ?? (walletStats ? new Set(walletStats.events.map(e => e.tokenMint || e.tokenSymbol)).size : 0);
+  const coinsTraded = displayStats?.coinsTraded ?? (displayStats ? new Set(displayStats.events.map(e => e.tokenMint || e.tokenSymbol)).size : 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -414,7 +484,7 @@ const Dashboard = () => {
 
           {/* Loader */}
           <AnimatePresence>
-            {isAnalyzing && (
+            {isAnalyzing && !showEarlyResults && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -425,6 +495,24 @@ const Dashboard = () => {
                     message={progressMessage}
                     progress={progressPercent}
                   />
+                  
+                  {/* Show Paperhands Button - appears after 30% progress */}
+                  {progressPercent >= 30 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex justify-center pb-6"
+                    >
+                      <Button
+                        onClick={handleShowEarlyResults}
+                        variant="outline"
+                        className="border-primary/50 hover:bg-primary/10"
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Results
+                      </Button>
+                    </motion.div>
+                  )}
                 </Card>
               </motion.div>
             )}
@@ -432,37 +520,80 @@ const Dashboard = () => {
 
           {/* Results */}
           <AnimatePresence>
-            {walletStats && !isAnalyzing && (
+            {(walletStats || (showEarlyResults && intermediateStats)) && !isAnalyzing && (
                <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-8"
               >
+                {/* Scan Still In Progress Banner */}
+                {scanInProgress && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-lg border border-blue-500/40 bg-gradient-to-r from-blue-500/15 via-cyan-500/10 to-blue-500/15 px-6 py-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="h-5 w-5 flex-shrink-0 text-blue-500 animate-spin" />
+                        <div className="flex-1">
+                          <span className="font-bold text-blue-400">Partial results — scan still in progress</span>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Results will update automatically when complete.
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={handleRefreshResults}
+                        variant="outline"
+                        size="sm"
+                        disabled={isRefreshing}
+                        className="border-blue-500/50 hover:bg-blue-500/10"
+                      >
+                        <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+                
                 {/* Partial Results Banner */}
-                {isPartialResult && (
+                {isPartialResult && !scanInProgress && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="rounded-lg border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 px-6 py-4"
                   >
-                    <div className="flex items-center gap-3">
-                      <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-500" />
-                      <div className="flex-1">
-                        <span className="font-bold text-amber-400">⚡ High traffic detected — showing partial results</span>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Full analysis may complete shortly. Results shown are not final.
-                        </p>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-500" />
+                        <div className="flex-1">
+                          <span className="font-bold text-amber-400">⚡ High traffic detected — showing partial results</span>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Full analysis may complete shortly. Results shown are not final.
+                          </p>
+                        </div>
                       </div>
+                      <Button
+                        onClick={handleRefreshResults}
+                        variant="outline"
+                        size="sm"
+                        disabled={isRefreshing}
+                        className="border-amber-500/50 hover:bg-amber-500/10"
+                      >
+                        <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                      </Button>
                     </div>
                   </motion.div>
                 )}
                 {/* Analysis Info Banner */}
-                {walletStats.analysisDateRange && (
+                {displayStats?.analysisDateRange && (
                   <Card className="border-primary/20 bg-primary/5 p-4">
                     <div className="space-y-2 text-center">
                       <p className="text-sm text-muted-foreground">
-                        Analysis for <span className="font-semibold text-foreground">last {walletStats.analysisDateRange.daysBack} days</span>
-                        {' '}({new Date(walletStats.analysisDateRange.startDate).toLocaleDateString()} - {new Date(walletStats.analysisDateRange.endDate).toLocaleDateString()})
+                        Analysis for <span className="font-semibold text-foreground">last {displayStats.analysisDateRange.daysBack} days</span>
+                        {' '}({new Date(displayStats.analysisDateRange.startDate).toLocaleDateString()} - {new Date(displayStats.analysisDateRange.endDate).toLocaleDateString()})
                       </p>
                       <p className="text-xs text-muted-foreground">
                         💡 "Missed Since Sell" uses current prices only. Historical peaks coming soon with Birdeye integration.
@@ -476,14 +607,14 @@ const Dashboard = () => {
                   <MetricCard
                     title="Coins Traded"
                     value={coinsTraded}
-                    subtitle={`${walletStats.totalEvents} total events`}
+                    subtitle={`${displayStats?.totalEvents ?? 0} total events`}
                     icon={Award}
                     trend="neutral"
                     delay={0}
                   />
                   <MetricCard
                     title="Missed Since Sell"
-                    value={`$${walletStats.totalRegret.toLocaleString()}`}
+                    value={`$${(displayStats?.totalRegret ?? 0).toLocaleString()}`}
                     subtitle="If still holding (current price)"
                     icon={TrendingDown}
                     trend="down"
@@ -491,15 +622,15 @@ const Dashboard = () => {
                   />
                   <MetricCard
                     title="Win Rate"
-                    value={`${walletStats.winRate}%`}
-                    subtitle={`${walletStats.totalEvents} trades analyzed`}
+                    value={`${displayStats?.winRate ?? 0}%`}
+                    subtitle={`${displayStats?.totalEvents ?? 0} trades analyzed`}
                     icon={Target}
-                    trend={walletStats.winRate > 50 ? "up" : "down"}
+                    trend={(displayStats?.winRate ?? 0) > 50 ? "up" : "down"}
                     delay={0.2}
                   />
                   <MetricCard
                     title="Avg Hold Time"
-                    value={`${walletStats.avgHoldTime}d`}
+                    value={`${displayStats?.avgHoldTime ?? 0}d`}
                     subtitle="Days to sell"
                     icon={Clock}
                     trend="neutral"
@@ -518,9 +649,9 @@ const Dashboard = () => {
                   <Card className="card-money noise-texture p-6">
                     <h2 className="mb-6 text-2xl font-bold">Top Missed Opportunities</h2>
                     <div className="space-y-4">
-                      {walletStats.topRegrettedTokens.map((token, i) => {
+                      {(displayStats?.topRegrettedTokens ?? []).map((token, i) => {
                         const tokenMint = token.tokenMint;
-                        const event = walletStats.events.find(e => e.tokenMint === tokenMint);
+                        const event = displayStats?.events.find(e => e.tokenMint === tokenMint);
                         const marketCap = event?.marketCap;
                         
                         return (
@@ -622,7 +753,7 @@ const Dashboard = () => {
                   <Card className="card-glass noise-texture p-6">
                     <h2 className="mb-6 text-2xl font-bold">All Trade Events</h2>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {walletStats.events.map((event) => (
+                      {(displayStats?.events ?? []).map((event) => (
                         <div
                           key={event.id}
                           className="group relative overflow-hidden rounded-xl border border-border bg-background/50 p-5 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-glow)]"
