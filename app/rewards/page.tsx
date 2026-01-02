@@ -1,7 +1,7 @@
 "use client";
 
 // Feature flag: set to true to enable scanning, false to disable
-const SCAN_ENABLED = false;
+const SCAN_ENABLED = true;
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
