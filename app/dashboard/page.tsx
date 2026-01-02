@@ -38,7 +38,7 @@ const calculateCashback = (regretAmount: number): string => {
 
 const Dashboard = () => {
   const [walletAddress, setWalletAddress] = useState("");
-  const [selectedDays, setSelectedDays] = useState<number>(7);
+  const [selectedDays, setSelectedDays] = useState<number>(1);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [walletStats, setWalletStats] = useState<WalletStats | null>(null);
   const [_showSlow, setShowSlow] = useState(false);
@@ -338,9 +338,12 @@ const Dashboard = () => {
                     <RadioGroupItem value="1" id="1day" className="peer sr-only" />
                     <Label
                       htmlFor="1day"
-                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/20 bg-background/50 p-3 transition-all hover:border-primary/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
+                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/40 bg-primary/5 p-3 transition-all hover:border-primary/60 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
                     >
-                      <span className="font-bold">Last 24 Hours</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold">Last 24 Hours</span>
+                        <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">Recommended</span>
+                      </div>
                       <span className="text-xs text-muted-foreground">~15-30 sec</span>
                     </Label>
                   </div>
@@ -349,10 +352,10 @@ const Dashboard = () => {
                     <RadioGroupItem value="7" id="7days" className="peer sr-only" />
                     <Label
                       htmlFor="7days"
-                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/20 bg-background/50 p-3 transition-all hover:border-primary/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
+                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-muted/30 bg-background/30 p-3 transition-all hover:border-primary/40 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
                     >
-                      <span className="font-bold">Last 7 Days</span>
-                      <span className="text-xs text-muted-foreground">~1-2 min</span>
+                      <span className="font-medium text-muted-foreground peer-data-[state=checked]:text-foreground">Last 7 Days</span>
+                      <span className="text-xs text-muted-foreground/70">Deeper scan</span>
                     </Label>
                   </div>
                   
@@ -360,10 +363,10 @@ const Dashboard = () => {
                     <RadioGroupItem value="14" id="14days" className="peer sr-only" />
                     <Label
                       htmlFor="14days"
-                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/20 bg-background/50 p-3 transition-all hover:border-primary/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
+                      className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-muted/30 bg-background/30 p-3 transition-all hover:border-primary/40 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
                     >
-                      <span className="font-bold">Last 14 Days</span>
-                      <span className="text-xs text-muted-foreground">~2-5 min</span>
+                      <span className="font-medium text-muted-foreground peer-data-[state=checked]:text-foreground">Last 14 Days</span>
+                      <span className="text-xs text-muted-foreground/70">More history</span>
                     </Label>
                   </div>
                   
@@ -376,17 +379,20 @@ const Dashboard = () => {
                             htmlFor="alltime"
                             className="flex cursor-not-allowed flex-col items-center justify-center rounded-lg border-2 border-muted/20 bg-muted/10 p-3 opacity-50"
                           >
-                            <span className="font-bold">All Time</span>
+                            <span className="font-medium">All Time</span>
                             <span className="text-xs text-muted-foreground">Coming soon</span>
                           </Label>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Coming soon - Full history analysis with database caching</p>
+                        <p>Coming soon - Full history analysis</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </RadioGroup>
+                <p className="mt-3 text-center text-xs text-muted-foreground">
+                  Most users get the best results from 24H scans.
+                </p>
               </div>
               
               <div className="flex gap-3">
