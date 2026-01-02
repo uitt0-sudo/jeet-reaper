@@ -7,7 +7,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { X, TrendingDown, Calendar, Flame, Trophy, Skull, DollarSign } from "lucide-react";
-import lexaproImage from "@/assets/kol-lexapro.png";
 
 interface KOL {
   name: string;
@@ -22,21 +21,7 @@ interface KOL {
   rank: number;
 }
 
-const LEXAPRO_IMAGE = lexaproImage as unknown as string;
-
 const kolsData: KOL[] = [
-  {
-    name: "Lexapro",
-    imageUrl: LEXAPRO_IMAGE,
-    totalFumbled: "$8,863,380",
-    totalFumbledNum: 8863380,
-    worstFumbleToken: "pippin",
-    worstFumbleDate: "2025",
-    worstFumbleAmount: "-$6,643,700",
-    worstFumbleAmountNum: 6643700,
-    fumblesTracked: 4533,
-    rank: 1,
-  },
   {
     name: "OGAntD",
     imageUrl: "https://cdn.kolscan.io/profiles/215nhcAHjQQGgwpQSJQ7zR26etbjjtVdW74NLzwEgQjP.png",
@@ -47,6 +32,18 @@ const kolsData: KOL[] = [
     worstFumbleAmount: "-$11,502,609",
     worstFumbleAmountNum: 11502609,
     fumblesTracked: 5,
+    rank: 1,
+  },
+  {
+    name: "Lexapro",
+    imageUrl: "/images/kol-lexapro.jpg",
+    totalFumbled: "$8,863,380",
+    totalFumbledNum: 8863380,
+    worstFumbleToken: "pippin",
+    worstFumbleDate: "2025",
+    worstFumbleAmount: "-$6,643,700",
+    worstFumbleAmountNum: 6643700,
+    fumblesTracked: 4533,
     rank: 2,
   },
   {
