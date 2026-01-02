@@ -3,7 +3,6 @@
 import { motion } from "framer-motion";
 import { Navigation, TopBar } from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
-import { KOLsSection } from "@/components/KOLsSection";
 
 const About = () => {
   return (
@@ -118,8 +117,6 @@ const About = () => {
                 </p>
               </div>
             </Card>
-
-            <KOLsSection />
           </motion.div>
         </div>
       </main>
