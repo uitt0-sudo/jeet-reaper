@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle, Users, Loader2, RefreshCw, Eye } from "lucide-react";
+import { Search, TrendingDown, DollarSign, Clock, Target, Award, AlertTriangle, Users, Loader2 } from "lucide-react";
 import { Navigation, TopBar } from "@/components/Navigation";
 import { AnimatedLoader } from "@/components/AnimatedLoader";
 import { MetricCard } from "@/components/MetricCard";
@@ -51,12 +51,6 @@ const Dashboard = () => {
   
   // Partial results state for timeout handling
   const [isPartialResult, setIsPartialResult] = useState(false);
-  
-  // Scan state for "Show Paperhands" button
-  const [scanInProgress, setScanInProgress] = useState(false);
-  const [intermediateStats, setIntermediateStats] = useState<WalletStats | null>(null);
-  const [showEarlyResults, setShowEarlyResults] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Update simulated queue length every minute with random number 1-25
   useEffect(() => {
@@ -156,10 +150,7 @@ const Dashboard = () => {
     }
 
     setIsAnalyzing(true);
-    setScanInProgress(true);
     setWalletStats(null);
-    setIntermediateStats(null);
-    setShowEarlyResults(false);
     setProgressMessage("Initializing analysis...");
     setProgressPercent(0);
     setIsPartialResult(false);
@@ -179,22 +170,11 @@ const Dashboard = () => {
       const stats = await analyzePaperhands(trimmedAddress, selectedDays, (message, percent) => {
         setProgressMessage(message);
         setProgressPercent(percent);
-        
-        // Store intermediate stats for "Show Paperhands" button
-        if (percent >= 50) {
-          // After 50%, we likely have some processed data
-          setIntermediateStats(prev => prev || stats);
-        }
       });
-
-      // Scan completed
-      setScanInProgress(false);
-      setShowEarlyResults(false);
 
       // Check if results are partial (hit the 90s timeout)
       if (stats.isPartial) {
         setIsPartialResult(true);
-        setScanInProgress(true); // Scan might still be running in background
         toast({
           title: "⚡ High traffic detected",
           description: "Showing partial results. Full analysis may complete shortly.",
@@ -203,7 +183,6 @@ const Dashboard = () => {
       }
 
       setWalletStats(stats);
-      setIntermediateStats(null);
       
       // Save to database for leaderboard
       try {
@@ -248,7 +227,6 @@ const Dashboard = () => {
       });
     } catch (error) {
       console.error('Analysis error:', error);
-      setScanInProgress(false);
       const errorMessage = error instanceof Error ? error.message : 'Could not analyze wallet';
       toast({ 
         title: "Analysis Failed", 
@@ -263,56 +241,8 @@ const Dashboard = () => {
     }
   };
 
-  // Handle "Show Paperhands" button - view results while scan continues
-  const handleShowEarlyResults = () => {
-    if (walletStats || intermediateStats) {
-      setShowEarlyResults(true);
-      setIsAnalyzing(false); // Hide the loader but keep scan running
-    }
-  };
-
-  // Handle Refresh button - fetch latest cached results without new scan
-  const handleRefreshResults = async () => {
-    if (!walletAddress.trim()) return;
-    
-    setIsRefreshing(true);
-    try {
-      const response = await fetch(`/api/wallet-analyses?wallet=${encodeURIComponent(walletAddress.trim())}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.total_regret !== undefined) {
-          // Update with latest cached data
-          const updatedStats: WalletStats = {
-            ...walletStats!,
-            totalRegret: data.total_regret ?? walletStats?.totalRegret ?? 0,
-            totalEvents: data.total_events ?? walletStats?.totalEvents ?? 0,
-            coinsTraded: data.coins_traded ?? walletStats?.coinsTraded ?? 0,
-            winRate: data.win_rate ?? walletStats?.winRate ?? 0,
-            avgHoldTime: data.avg_hold_time ?? walletStats?.avgHoldTime ?? 0,
-            topRegrettedTokens: data.top_regretted_tokens ?? walletStats?.topRegrettedTokens ?? [],
-            isPartial: false, // Refreshed data is considered complete
-          };
-          setWalletStats(updatedStats);
-          setScanInProgress(false);
-          setIsPartialResult(false);
-          toast({
-            title: "Results refreshed",
-            description: "Showing latest analysis data.",
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Failed to refresh results:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  // Use displayed stats (either walletStats or intermediateStats for early view)
-  const displayStats = walletStats || intermediateStats;
-  
   // Unique coins traded (by mint or symbol as fallback)
-  const coinsTraded = displayStats?.coinsTraded ?? (displayStats ? new Set(displayStats.events.map(e => e.tokenMint || e.tokenSymbol)).size : 0);
+  const coinsTraded = walletStats?.coinsTraded ?? (walletStats ? new Set(walletStats.events.map(e => e.tokenMint || e.tokenSymbol)).size : 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -484,7 +414,7 @@ const Dashboard = () => {
 
           {/* Loader */}
           <AnimatePresence>
-            {isAnalyzing && !showEarlyResults && (
+            {isAnalyzing && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -495,24 +425,6 @@ const Dashboard = () => {
                     message={progressMessage}
                     progress={progressPercent}
                   />
-                  
-                  {/* Show Paperhands Button - appears after 30% progress */}
-                  {progressPercent >= 30 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex justify-center pb-6"
-                    >
-                      <Button
-                        onClick={handleShowEarlyResults}
-                        variant="outline"
-                        className="border-primary/50 hover:bg-primary/10"
-                      >
-                        <Eye className="mr-2 h-4 w-4" />
-                        View Results
-                      </Button>
-                    </motion.div>
-                  )}
                 </Card>
               </motion.div>
             )}
@@ -520,92 +432,37 @@ const Dashboard = () => {
 
           {/* Results */}
           <AnimatePresence>
-            {(walletStats || (showEarlyResults && intermediateStats)) && !isAnalyzing && (
+            {walletStats && !isAnalyzing && (
                <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-8"
               >
-                {/* Scan Still In Progress Banner */}
-                {scanInProgress && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-lg border border-blue-500/40 bg-gradient-to-r from-blue-500/15 via-cyan-500/10 to-blue-500/15 px-6 py-4"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <Loader2 className="h-5 w-5 flex-shrink-0 text-blue-500 animate-spin" />
-                        <div className="flex-1">
-                          <span className="font-bold text-blue-400">Partial results — scan still in progress</span>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Results will update automatically when complete.
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        onClick={handleRefreshResults}
-                        variant="outline"
-                        size="sm"
-                        disabled={isRefreshing}
-                        className="border-blue-500/50 hover:bg-blue-500/10"
-                      >
-                        <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                        {isRefreshing ? 'Refreshing...' : 'Refresh'}
-                      </Button>
-                    </div>
-                  </motion.div>
-                )}
-                
                 {/* Partial Results Banner */}
-                {isPartialResult && !scanInProgress && (
+                {isPartialResult && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="rounded-lg border border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 px-6 py-4"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-500" />
-                        <div className="flex-1">
-                          <span className="font-bold text-amber-400">⚡ High traffic detected — showing partial results</span>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Full analysis may complete shortly. Results shown are not final.
-                          </p>
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-500" />
+                      <div className="flex-1">
+                        <span className="font-bold text-amber-400">⚡ High traffic detected — showing partial results</span>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Full analysis may complete shortly. Results shown are not final.
+                        </p>
                       </div>
-                      <Button
-                        onClick={handleRefreshResults}
-                        variant="outline"
-                        size="sm"
-                        disabled={isRefreshing}
-                        className="border-amber-500/50 hover:bg-amber-500/10"
-                      >
-                        <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                        {isRefreshing ? 'Refreshing...' : 'Refresh'}
-                      </Button>
                     </div>
                   </motion.div>
                 )}
                 {/* Analysis Info Banner */}
-                {displayStats?.analysisDateRange && displayStats.analysisDateRange.startDate && displayStats.analysisDateRange.endDate && (
+                {walletStats.analysisDateRange && (
                   <Card className="border-primary/20 bg-primary/5 p-4">
                     <div className="space-y-2 text-center">
                       <p className="text-sm text-muted-foreground">
-                        Analysis for <span className="font-semibold text-foreground">last {displayStats.analysisDateRange.daysBack ?? 30} days</span>
-                        {' '}({(() => {
-                          try {
-                            return new Date(displayStats.analysisDateRange.startDate).toLocaleDateString();
-                          } catch {
-                            return 'N/A';
-                          }
-                        })()} - {(() => {
-                          try {
-                            return new Date(displayStats.analysisDateRange.endDate).toLocaleDateString();
-                          } catch {
-                            return 'N/A';
-                          }
-                        })()})
+                        Analysis for <span className="font-semibold text-foreground">last {walletStats.analysisDateRange.daysBack} days</span>
+                        {' '}({new Date(walletStats.analysisDateRange.startDate).toLocaleDateString()} - {new Date(walletStats.analysisDateRange.endDate).toLocaleDateString()})
                       </p>
                       <p className="text-xs text-muted-foreground">
                         💡 "Missed Since Sell" uses current prices only. Historical peaks coming soon with Birdeye integration.
@@ -615,42 +472,40 @@ const Dashboard = () => {
                 )}
                 
                 {/* Header Stats - Simplified and Honest */}
-                {displayStats && (
-                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                    <MetricCard
-                      title="Coins Traded"
-                      value={coinsTraded ?? 0}
-                      subtitle={`${displayStats.totalEvents ?? 0} total events`}
-                      icon={Award}
-                      trend="neutral"
-                      delay={0}
-                    />
-                    <MetricCard
-                      title="Missed Since Sell"
-                      value={`$${(displayStats.totalRegret ?? 0).toLocaleString()}`}
-                      subtitle="If still holding (current price)"
-                      icon={TrendingDown}
-                      trend="down"
-                      delay={0.1}
-                    />
-                    <MetricCard
-                      title="Win Rate"
-                      value={`${displayStats.winRate ?? 0}%`}
-                      subtitle={`${displayStats.totalEvents ?? 0} trades analyzed`}
-                      icon={Target}
-                      trend={(displayStats.winRate ?? 0) > 50 ? "up" : "down"}
-                      delay={0.2}
-                    />
-                    <MetricCard
-                      title="Avg Hold Time"
-                      value={`${displayStats.avgHoldTime ?? 0}d`}
-                      subtitle="Days to sell"
-                      icon={Clock}
-                      trend="neutral"
-                      delay={0.3}
-                    />
-                  </div>
-                )}
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                  <MetricCard
+                    title="Coins Traded"
+                    value={coinsTraded}
+                    subtitle={`${walletStats.totalEvents} total events`}
+                    icon={Award}
+                    trend="neutral"
+                    delay={0}
+                  />
+                  <MetricCard
+                    title="Missed Since Sell"
+                    value={`$${walletStats.totalRegret.toLocaleString()}`}
+                    subtitle="If still holding (current price)"
+                    icon={TrendingDown}
+                    trend="down"
+                    delay={0.1}
+                  />
+                  <MetricCard
+                    title="Win Rate"
+                    value={`${walletStats.winRate}%`}
+                    subtitle={`${walletStats.totalEvents} trades analyzed`}
+                    icon={Target}
+                    trend={walletStats.winRate > 50 ? "up" : "down"}
+                    delay={0.2}
+                  />
+                  <MetricCard
+                    title="Avg Hold Time"
+                    value={`${walletStats.avgHoldTime}d`}
+                    subtitle="Days to sell"
+                    icon={Clock}
+                    trend="neutral"
+                    delay={0.3}
+                  />
+                </div>
 
 
 
@@ -663,104 +518,97 @@ const Dashboard = () => {
                   <Card className="card-money noise-texture p-6">
                     <h2 className="mb-6 text-2xl font-bold">Top Missed Opportunities</h2>
                     <div className="space-y-4">
-                      {(displayStats?.topRegrettedTokens ?? []).length === 0 ? (
-                        <p className="text-muted-foreground text-center py-8">No missed opportunities found yet.</p>
-                      ) : (
-                        (displayStats?.topRegrettedTokens ?? []).map((token, i) => {
-                          if (!token) return null;
-                          const tokenMint = token.tokenMint ?? '';
-                          const tokenSymbol = token.symbol || (tokenMint ? `${tokenMint.slice(0,4)}...${tokenMint.slice(-4)}` : 'Unknown');
-                          const regretAmount = token.regretAmount ?? 0;
-                          const events = displayStats?.events ?? [];
-                          const event = events.find(e => e?.tokenMint === tokenMint);
-                          const marketCap = event?.marketCap ?? 0;
-                          
-                          return (
-                            <div
-                              key={`${tokenMint || tokenSymbol}-${i}`}
-                              className="group relative overflow-hidden rounded-xl border border-primary/20 bg-background/50 p-6 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-glow)]"
-                            >
-                                <div className="relative z-10 flex items-center justify-between">
-                                  <div className="flex items-center space-x-4">
-                                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xl font-bold">
-                                      #{i + 1}
-                                    </span>
-                                    <div className="flex items-center gap-3">
-                                      {tokenMint && (
-                                        <TokenLogo
-                                          mint={tokenMint}
-                                          preferredUrls={token.tokenLogos}
-                                          alt={`${tokenSymbol} logo`}
-                                          className="h-8 w-8 rounded-full border border-border object-cover"
-                                        />
+                      {walletStats.topRegrettedTokens.map((token, i) => {
+                        const tokenMint = token.tokenMint;
+                        const event = walletStats.events.find(e => e.tokenMint === tokenMint);
+                        const marketCap = event?.marketCap;
+                        
+                        return (
+                          <div
+                            key={token.symbol}
+                            className="group relative overflow-hidden rounded-xl border border-primary/20 bg-background/50 p-6 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-glow)]"
+                          >
+                              <div className="relative z-10 flex items-center justify-between">
+                                <div className="flex items-center space-x-4">
+                                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xl font-bold">
+                                    #{i + 1}
+                                  </span>
+                                  <div className="flex items-center gap-3">
+                                    {tokenMint && (
+                                      <TokenLogo
+                                        mint={tokenMint}
+                                        preferredUrls={token.tokenLogos}
+                                        alt={`${token.symbol} logo`}
+                                        className="h-8 w-8 rounded-full border border-border object-cover"
+                                      />
+                                    )}
+                                    <div>
+                                      {tokenMint ? (
+                                        <a 
+                                          href={`https://dexscreener.com/solana/${tokenMint}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xl font-bold hover:text-primary transition-colors hover:underline"
+                                        >
+                                          {token.symbol || (tokenMint ? `${tokenMint.slice(0,4)}...${tokenMint.slice(-4)}` : 'Unknown')}
+
+                                        </a>
+                                      ) : (
+                                        <h3 className="text-xl font-bold">{token.symbol}</h3>
                                       )}
-                                      <div>
-                                        {tokenMint ? (
-                                          <a 
-                                            href={`https://dexscreener.com/solana/${tokenMint}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-xl font-bold hover:text-primary transition-colors hover:underline"
-                                          >
-                                            {tokenSymbol}
-                                          </a>
-                                        ) : (
-                                          <h3 className="text-xl font-bold">{tokenSymbol}</h3>
+                                      <p className="text-sm text-muted-foreground">
+                                        Missed since sell
+                                        {marketCap && marketCap > 0 && (
+                                          <span className="ml-2">• MC: ${formatNumberShort(marketCap)}</span>
                                         )}
-                                        <p className="text-sm text-muted-foreground">
-                                          Missed since sell
-                                          {marketCap > 0 && (
-                                            <span className="ml-2">• MC: ${formatNumberShort(marketCap)}</span>
-                                          )}
-                                        </p>
-                                      </div>
+                                      </p>
                                     </div>
-                                   </div>
-                                   <div className="text-right flex items-center gap-3">
-                                     {/* Cashback Icon with Tooltip */}
-                                     <TooltipProvider>
-                                       <Tooltip>
-                                         <TooltipTrigger asChild>
-                                           <div className="flex h-9 w-9 cursor-help items-center justify-center rounded-full bg-primary/20 backdrop-blur-sm transition-all hover:bg-primary/30 hover:scale-110">
-                                             <DollarSign className="h-5 w-5 text-primary" />
-                                           </div>
-                                         </TooltipTrigger>
-                                         <TooltipContent side="left" className="max-w-xs">
-                                           <div className="space-y-2">
-                                             <p className="font-bold text-primary">💰 Potential Cashback Reward</p>
-                                             <p className="text-sm">Based on ${regretAmount.toLocaleString()} missed:</p>
-                                             <p className="text-lg font-bold text-primary">{calculateCashback(regretAmount)}</p>
-                                             <p className="text-xs text-muted-foreground">Rewards program coming Q1 2025!</p>
-                                           </div>
-                                         </TooltipContent>
-                                       </Tooltip>
-                                     </TooltipProvider>
-                                     
-                                     <div>
-                                       <p className="text-3xl font-black text-destructive">
-                                         ${regretAmount.toLocaleString()}
-                                       </p>
-                                       <div className="flex items-center justify-end gap-3">
-                                         <p className="text-sm text-muted-foreground">At current price</p>
-                                         {tokenMint && (
-                                           <a
-                                             href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${tokenSymbol} — missed $${regretAmount.toFixed(0)}.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
-                                             target="_blank"
-                                             rel="noopener noreferrer"
-                                             className="text-xs text-accent hover:underline"
-                                           >
-                                             Share
-                                           </a>
-                                         )}
-                                       </div>
+                                  </div>
+                                 </div>
+                                 <div className="text-right flex items-center gap-3">
+                                   {/* Cashback Icon with Tooltip */}
+                                   <TooltipProvider>
+                                     <Tooltip>
+                                       <TooltipTrigger asChild>
+                                         <div className="flex h-9 w-9 cursor-help items-center justify-center rounded-full bg-primary/20 backdrop-blur-sm transition-all hover:bg-primary/30 hover:scale-110">
+                                           <DollarSign className="h-5 w-5 text-primary" />
+                                         </div>
+                                       </TooltipTrigger>
+                                       <TooltipContent side="left" className="max-w-xs">
+                                         <div className="space-y-2">
+                                           <p className="font-bold text-primary">💰 Potential Cashback Reward</p>
+                                           <p className="text-sm">Based on ${token.regretAmount.toLocaleString()} missed:</p>
+                                           <p className="text-lg font-bold text-primary">{calculateCashback(token.regretAmount)}</p>
+                                           <p className="text-xs text-muted-foreground">Rewards program coming Q1 2025!</p>
+                                         </div>
+                                       </TooltipContent>
+                                     </Tooltip>
+                                   </TooltipProvider>
+                                   
+                                   <div>
+                                     <p className="text-3xl font-black text-destructive">
+                                       ${token.regretAmount.toLocaleString()}
+                                     </p>
+                                     <div className="flex items-center justify-end gap-3">
+                                       <p className="text-sm text-muted-foreground">At current price</p>
+                                       {tokenMint && (
+                                         <a
+                                           href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${token.symbol || (tokenMint ? `${tokenMint.slice(0,4)}...${tokenMint.slice(-4)}` : 'this token')} — missed $${token.regretAmount.toFixed(0)}.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
+                                           target="_blank"
+                                           rel="noopener noreferrer"
+                                           className="text-xs text-accent hover:underline"
+                                         >
+                                           Share
+                                         </a>
+                                       )}
                                      </div>
                                    </div>
-                                </div>
-                              <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-destructive/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                            </div>
-                          );
-                        })
-                      )}
+                                 </div>
+                              </div>
+                            <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-destructive/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                          </div>
+                        );
+                      })}
                     </div>
                   </Card>
                 </motion.div>
@@ -774,111 +622,92 @@ const Dashboard = () => {
                   <Card className="card-glass noise-texture p-6">
                     <h2 className="mb-6 text-2xl font-bold">All Trade Events</h2>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {(displayStats?.events ?? []).length === 0 ? (
-                        <p className="text-muted-foreground text-center py-8 col-span-full">No trade events found yet.</p>
-                      ) : (
-                        (displayStats?.events ?? []).map((event) => {
-                          if (!event) return null;
-                          const eventId = event.id ?? `event-${Math.random()}`;
-                          const tokenMint = event.tokenMint ?? '';
-                          const tokenSymbol = event.tokenSymbol || (tokenMint ? `${tokenMint.slice(0,4)}...${tokenMint.slice(-4)}` : 'Unknown');
-                          const tokenName = event.tokenName || 'Unknown Token';
-                          const buyPrice = event.buyPrice ?? 0;
-                          const sellPrice = event.sellPrice ?? 0;
-                          const peakPrice = event.peakPrice ?? 0;
-                          const realizedProfit = event.realizedProfit ?? 0;
-                          const regretAmount = event.regretAmount ?? 0;
-                          const regretPercent = event.regretPercent ?? 0;
-                          const marketCap = event.marketCap ?? 0;
-                          const explorerUrl = event.explorerUrl ?? '#';
-                          
-                          return (
-                            <div
-                              key={eventId}
-                              className="group relative overflow-hidden rounded-xl border border-border bg-background/50 p-5 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-glow)]"
-                            >
-                                <div className="mb-4 flex items-start justify-between">
-                                  <div className="flex items-center gap-3">
-                                    {tokenMint && (
-                                      <TokenLogo
-                                        mint={tokenMint}
-                                        preferredUrls={event.tokenLogos ?? (event.tokenLogo ? [event.tokenLogo] : undefined)}
-                                        alt={`${tokenSymbol} logo`}
-                                        className="h-8 w-8 rounded-full border border-border object-cover"
-                                      />
-                                    )}
-                                    <div>
-                                      {tokenMint ? (
-                                        <a 
-                                          href={`https://dexscreener.com/solana/${tokenMint}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-lg font-bold hover:text-primary transition-colors hover:underline"
-                                        >
-                                          {tokenSymbol}
-                                        </a>
-                                      ) : (
-                                        <h3 className="text-lg font-bold">{tokenSymbol}</h3>
-                                      )}
-                                      <p className="text-xs text-muted-foreground">{tokenName}</p>
-                                      {marketCap > 0 && (
-                                        <p className="text-xs text-primary mt-1">MC: ${formatNumberShort(marketCap)}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-                                    +{regretPercent.toFixed(0)}%
-                                  </span>
-                                </div>
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Buy Price:</span>
-                                  <span className="font-mono font-medium">${buyPrice.toFixed(6)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Sell Price:</span>
-                                  <span className="font-mono font-medium">${sellPrice.toFixed(6)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Current:</span>
-                                  <span className="font-mono font-medium text-primary">${peakPrice.toFixed(6)}</span>
-                                </div>
-                                <div className="flex justify-between border-t border-border pt-2">
-                                  <span className="text-muted-foreground">Realized PnL:</span>
-                                  <span className={`font-mono font-semibold ${realizedProfit >= 0 ? 'text-success' : 'text-destructive'}`}>
-                                    {realizedProfit >= 0 ? '+' : ''}${realizedProfit.toFixed(2)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Missed:</span>
-                                  <span className="font-mono font-bold text-muted-foreground">
-                                    ${regretAmount.toFixed(2)}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between gap-3 pt-2">
-                                  <a 
-                                    href={explorerUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-primary hover:underline"
-                                  >
-                                    View on Solscan →
-                                  </a>
-                                  <a
-                                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${tokenSymbol} — missed $${regretAmount.toFixed(0)} since selling.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-accent hover:underline"
-                                  >
-                                    Share on X →
-                                  </a>
+                      {walletStats.events.map((event) => (
+                        <div
+                          key={event.id}
+                          className="group relative overflow-hidden rounded-xl border border-border bg-background/50 p-5 transition-all hover:border-primary/50 hover:shadow-[var(--shadow-glow)]"
+                        >
+                            <div className="mb-4 flex items-start justify-between">
+                              <div className="flex items-center gap-3">
+                                {event.tokenMint && (
+                                  <TokenLogo
+                                    mint={event.tokenMint}
+                                    preferredUrls={event.tokenLogos ?? (event.tokenLogo ? [event.tokenLogo] : undefined)}
+                                    alt={`${event.tokenSymbol} logo`}
+                                    className="h-8 w-8 rounded-full border border-border object-cover"
+                                  />
+                                )}
+                                <div>
+                                  {event.tokenMint ? (
+                                    <a 
+                                      href={`https://dexscreener.com/solana/${event.tokenMint}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-lg font-bold hover:text-primary transition-colors hover:underline"
+                                    >
+                                      {event.tokenSymbol || (event.tokenMint ? `${event.tokenMint.slice(0,4)}...${event.tokenMint.slice(-4)}` : 'Unknown')}
+
+                                    </a>
+                                  ) : (
+                                    <h3 className="text-lg font-bold">{event.tokenSymbol || (event.tokenMint ? `${event.tokenMint.slice(0,4)}...${event.tokenMint.slice(-4)}` : 'Unknown')}</h3>
+                                  )}
+                                  <p className="text-xs text-muted-foreground">{event.tokenName}</p>
+                                  {event.marketCap && event.marketCap > 0 && (
+                                    <p className="text-xs text-primary mt-1">MC: ${formatNumberShort(event.marketCap)}</p>
+                                  )}
                                 </div>
                               </div>
-                              <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-primary/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                                +{event.regretPercent.toFixed(0)}%
+                              </span>
                             </div>
-                          );
-                        })
-                      )}
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Buy Price:</span>
+                              <span className="font-mono font-medium">${event.buyPrice.toFixed(6)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Sell Price:</span>
+                              <span className="font-mono font-medium">${event.sellPrice.toFixed(6)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Current:</span>
+                              <span className="font-mono font-medium text-primary">${event.peakPrice.toFixed(6)}</span>
+                            </div>
+                            <div className="flex justify-between border-t border-border pt-2">
+                              <span className="text-muted-foreground">Realized PnL:</span>
+                              <span className={`font-mono font-semibold ${event.realizedProfit >= 0 ? 'text-success' : 'text-destructive'}`}>
+                                {event.realizedProfit >= 0 ? '+' : ''}${event.realizedProfit.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Missed:</span>
+                              <span className="font-mono font-bold text-muted-foreground">
+                                ${event.regretAmount.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 pt-2">
+                              <a 
+                                href={event.explorerUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline"
+                              >
+                                View on Solscan →
+                              </a>
+                              <a
+                                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Check out my paperhands on ${event.tokenSymbol} — missed $${event.regretAmount.toFixed(0)} since selling.`)}&url=${typeof window !== 'undefined' ? encodeURIComponent(window.location.origin + '/dashboard') : ''}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-accent hover:underline"
+                              >
+                                Share on X →
+                              </a>
+                            </div>
+                          </div>
+                          <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-primary/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                        </div>
+                      ))}
                     </div>
                   </Card>
                 </motion.div>
