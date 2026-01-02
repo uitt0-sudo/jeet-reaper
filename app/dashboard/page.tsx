@@ -352,7 +352,7 @@ const Dashboard = () => {
                       className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/20 bg-background/50 p-3 transition-all hover:border-primary/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
                     >
                       <span className="font-bold">Last 7 Days</span>
-                      <span className="text-xs text-muted-foreground">~30-60 sec</span>
+                      <span className="text-xs text-muted-foreground">~1-2 min</span>
                     </Label>
                   </div>
                   
@@ -363,7 +363,7 @@ const Dashboard = () => {
                       className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-primary/20 bg-background/50 p-3 transition-all hover:border-primary/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10"
                     >
                       <span className="font-bold">Last 14 Days</span>
-                      <span className="text-xs text-muted-foreground">~1-2 min</span>
+                      <span className="text-xs text-muted-foreground">~2-5 min</span>
                     </Label>
                   </div>
                   
